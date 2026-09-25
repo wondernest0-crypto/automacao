@@ -87,6 +87,30 @@ TEMPO_CURTO = 2
 TEMPO_MEDIO = 3
 TEMPO_LONGO = 6
 
+# ========================================
+# CONFIGURAÇÕES - IMPORTAÇÃO DE PEDIDO (HONDA & GM)
+# ========================================
+# Programa TOTVS aberto pelo atalho do lançador
+PROGRAMA_IMPORTACAO = "ESPD0001"
+
+# Atalho que abre o lançador de programas no TOTVS.
+# OBS: você pediu CTRL+X. A automação de inventário existente usa
+#      CTRL+ALT+X para o mesmo lançador. Se o lançador não abrir,
+#      troque para ('ctrl', 'alt', 'x').
+ATALHO_ABRIR_PROGRAMA = ('ctrl', 'x')
+
+# Diretório de origem dos pedidos (GM)
+DIRETORIO_IMPORTACAO_GM = "\\\\192.168.0.9\\s\\Sawluz\\swedi\\OUTPUT\\GM\\"
+
+# Quantas vezes repetir a sequência (TAB, ENTER) após abrir o programa
+QTD_TAB_ENTER = 5
+
+# Tempo máximo (segundos) aguardando a janela "DATASUL Interative" aparecer
+TEMPO_ESPERA_DATASUL = 47
+
+# Tempo (segundos) aguardando o programa ESPD0001 carregar
+TEMPO_ESPERA_PROGRAMA = 6
+
 USUARIO_WINDOWS = getpass.getuser()
 
 pyautogui.FAILSAFE = True
@@ -114,6 +138,7 @@ class AutomacaoTOTVS:
         self.qtd_mv_retirada = 0
         self.primeiro_item = True
         self.total_itens_processar = 0
+        self._driver_login = None  # driver do Edge usado no login (fechar ao terminar)
     
     # ========================================
     # SISTEMA DE LOG EM ARQUIVO
@@ -210,9 +235,30 @@ class AutomacaoTOTVS:
     # ABRIR TOTVS VIA NAVEGADOR
     # ========================================
     def abrir_totvs_navegador(self):
-        """Abre TOTVS pelo navegador Edge e faz login"""
+        """Abre TOTVS pelo navegador Edge, faz login e aguarda a janela DATASUL."""
         self.log("\n🌐 ABRINDO TOTVS VIA NAVEGADOR...")
-        
+
+        if not self._login_totvs_navegador():
+            return False
+
+        # Aguardar TOTVS Desktop abrir
+        self.log("   >> Aguardando TOTVS Desktop iniciar (30 seg max)...")
+        for i in range(30):
+            time.sleep(1)
+            janela_datasul = self.encontrar_janela("DATASUL")
+            if janela_datasul:
+                self.log_sucesso("DATASUL aberto com sucesso!")
+                self._fechar_driver_login()
+                return True
+
+        self.log_aviso("TOTVS não abriu no tempo esperado")
+        self._fechar_driver_login()
+        return False
+
+    def _login_totvs_navegador(self):
+        """Abre o Edge, acessa o TOTVS, preenche login/senha, clica em Entrar
+        e trata o popup 'Abrir aplicativo'. NÃO aguarda a janela DATASUL.
+        Guarda o driver em self._driver_login (feche com _fechar_driver_login)."""
         try:
             # Configurar Edge
             edge_options = EdgeOptions()
@@ -233,6 +279,7 @@ class AutomacaoTOTVS:
             self.log("   >> Iniciando Edge...")
             service = EdgeService(executable_path=driver_local)
             driver = webdriver.Edge(service=service, options=edge_options)
+            self._driver_login = driver
             self.log_sucesso("Edge iniciado!")
             
             self.log(f"   >> Acessando: {TOTVS_URL}")
@@ -273,27 +320,9 @@ class AutomacaoTOTVS:
                 self.log_sucesso("Popup tratado! Aguardando TOTVS abrir...")
             else:
                 self.log_aviso("Popup não detectado, continuando...")
-            
-            # Aguardar TOTVS Desktop abrir
-            self.log("   >> Aguardando TOTVS Desktop iniciar (30 seg max)...")
-            for i in range(30):
-                time.sleep(1)
-                janela_datasul = self.encontrar_janela("DATASUL")
-                if janela_datasul:
-                    self.log_sucesso("DATASUL aberto com sucesso!")
-                    try:
-                        driver.quit()
-                    except:
-                        pass
-                    return True
-            
-            self.log_aviso("TOTVS não abriu no tempo esperado")
-            try:
-                driver.quit()
-            except:
-                pass
-            return False
-            
+
+            return True
+
         except TimeoutException:
             self.log_erro("Timeout ao carregar página de login!")
             return False
@@ -304,7 +333,17 @@ class AutomacaoTOTVS:
             self.log_erro(f"Erro ao abrir TOTVS via navegador: {e}")
             traceback.print_exc()
             return False
-    
+
+    def _fechar_driver_login(self):
+        """Fecha o driver do Edge usado no login (se existir)."""
+        try:
+            driver = getattr(self, '_driver_login', None)
+            if driver:
+                driver.quit()
+        except Exception:
+            pass
+        self._driver_login = None
+
     def tratar_popup_abrir_aplicativo(self):
         """
         Trata o popup do Windows 'deseja abrir este aplicativo'
@@ -2056,6 +2095,126 @@ class AutomacaoTOTVS:
             self.log_erro(f"Erro ao reabrir: {e}")
     
     # ========================================
+    # IMPORTAR PEDIDO - HONDA & GM (ESPD0001)
+    # ========================================
+    def importar_pedido(self):
+        """Abre o programa ESPD0001 no TOTVS e importa pedidos do diretório GM."""
+        self.log("\n" + "=" * 60)
+        self.log("🚗 IMPORTAÇÃO DE PEDIDO - HONDA & GM")
+        self.log("=" * 60)
+
+        diretorio = DIRETORIO_IMPORTACAO_GM
+
+        # --------------------------------------------------
+        # PASSO 1: Procurar a janela "DATASUL Interative"
+        # --------------------------------------------------
+        self.log("🔍 Procurando janela 'DATASUL Interative'...")
+        janela = self.encontrar_janela("DATASUL Interative")
+
+        # --------------------------------------------------
+        # PASSO 2: Se não achar, abre o TOTVS do zero e
+        #          aguarda até TEMPO_ESPERA_DATASUL a janela aparecer
+        # --------------------------------------------------
+        if not janela:
+            self.log_aviso("⚠️ 'DATASUL Interative' não encontrado!")
+            self.log("🌐 Abrindo TOTVS (login -> senha -> Entrar -> popup)...")
+
+            if not self._login_totvs_navegador():
+                self.log_erro("❌ Falha ao abrir/logar no TOTVS!")
+                self.reabrir_interface()
+                return False
+
+            self.log(f"   >> Aguardando 'DATASUL Interative' (até {TEMPO_ESPERA_DATASUL}s)...")
+            for i in range(TEMPO_ESPERA_DATASUL):
+                time.sleep(1)
+                janela = self.encontrar_janela("DATASUL Interative")
+                if janela:
+                    self.log_sucesso(f"'DATASUL Interative' apareceu após {i + 1}s!")
+                    break
+
+            self._fechar_driver_login()
+
+            if not janela:
+                self.log_erro("❌ 'DATASUL Interative' não apareceu no tempo esperado!")
+                self.reabrir_interface()
+                return False
+        else:
+            self.log_sucesso("'DATASUL Interative' já estava aberto!")
+
+        # --------------------------------------------------
+        # PASSO 3: Trazer para frente e abrir o ESPD0001
+        # --------------------------------------------------
+        self.log("🔺 Trazendo 'DATASUL Interative' para frente...")
+        self.trazer_frente(janela)
+        self.esperar(TEMPO_MEDIO)
+
+        atalho = '+'.join(k.upper() for k in ATALHO_ABRIR_PROGRAMA)
+        self.log(f"⌨️ {atalho} (abrir lançador)...")
+        pyautogui.hotkey(*ATALHO_ABRIR_PROGRAMA)
+        self.esperar(TEMPO_CURTO)
+
+        self.log(f"⌨️ Digitando {PROGRAMA_IMPORTACAO}...")
+        pyautogui.typewrite(PROGRAMA_IMPORTACAO, interval=0.05)
+        self.esperar(TEMPO_CURTO)
+
+        self.log("⌨️ ENTER (abrir programa)...")
+        pyautogui.press('enter')
+        self.log(f"   >> Aguardando {TEMPO_ESPERA_PROGRAMA}s o programa carregar...")
+        self.esperar(TEMPO_ESPERA_PROGRAMA)
+
+        # --------------------------------------------------
+        # PASSO 4: TAB e ENTER (QTD_TAB_ENTER x)
+        # --------------------------------------------------
+        self.log(f"⌨️ {QTD_TAB_ENTER}x (TAB, ENTER)...")
+        for i in range(QTD_TAB_ENTER):
+            pyautogui.press('tab')
+            self.esperar(0.3)
+            pyautogui.press('enter')
+            self.log(f"   >> Sequência {i + 1}/{QTD_TAB_ENTER}")
+            self.esperar(TEMPO_CURTO)
+
+        # --------------------------------------------------
+        # PASSO 5: Colar o diretório
+        # --------------------------------------------------
+        self.log(f"📋 Colando diretório: {diretorio}")
+        try:
+            pyperclip.copy(diretorio)
+        except Exception as e:
+            self.log_aviso(f"Falha ao copiar diretório: {e}")
+        self.esperar(0.3)
+        pyautogui.hotkey('ctrl', 'v')
+        self.esperar(TEMPO_CURTO)
+
+        # --------------------------------------------------
+        # PASSO 6: 4x TAB
+        # --------------------------------------------------
+        self.log("⌨️ 4x TAB...")
+        for _ in range(4):
+            pyautogui.press('tab')
+            self.esperar(0.3)
+
+        # --------------------------------------------------
+        # PASSO 7: Seta para baixo, depois seta para cima
+        # --------------------------------------------------
+        self.log("⌨️ Seta para BAIXO...")
+        pyautogui.press('down')
+        self.esperar(TEMPO_CURTO)
+        self.log("⌨️ Seta para CIMA...")
+        pyautogui.press('up')
+        self.esperar(TEMPO_CURTO)
+
+        # --------------------------------------------------
+        # PASSO 8: ENTER final
+        # --------------------------------------------------
+        self.log("⌨️ ENTER (confirmar)...")
+        pyautogui.press('enter')
+        self.esperar(TEMPO_MEDIO)
+
+        self.log_sucesso("✅ Fluxo de importação de pedido concluído!")
+        self.reabrir_interface()
+        return True
+
+    # ========================================
     # EXECUTAR
     # ========================================
     
@@ -2116,4 +2275,9 @@ class AutomacaoTOTVS:
 # ========================================
 if __name__ == "__main__":
     bot = AutomacaoTOTVS()
-    bot.executar()
+    # Modo "importar" roda o fluxo de Importar Pedido HONDA & GM (ESPD0001).
+    # Sem argumento, roda a automação de ajuste de inventário (padrão).
+    if len(sys.argv) > 1 and sys.argv[1].lower() in ("importar", "importacao", "import"):
+        bot.importar_pedido()
+    else:
+        bot.executar()

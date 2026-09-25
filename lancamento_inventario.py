@@ -253,10 +253,33 @@ class LancamentoInventario:
             fg='#95a5a6',
             bg='#16213e'
         ).pack()
-        
+
+        # ========================================
+        # ABAS (NOTEBOOK)
+        # ========================================
+        nb_style = ttk.Style()
+        try:
+            nb_style.theme_use('clam')
+            nb_style.configure('TNotebook', background='#1a1a2e', borderwidth=0, tabmargins=[2, 2, 2, 0])
+            nb_style.configure('TNotebook.Tab', background='#16213e', foreground='#00d4ff',
+                               padding=[18, 8], font=('Arial', 10, 'bold'))
+            nb_style.map('TNotebook.Tab',
+                         background=[('selected', '#0f3460')],
+                         foreground=[('selected', '#ffffff')])
+        except Exception:
+            pass
+
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
+
+        self.tab_inventario = tk.Frame(self.notebook, bg='#1a1a2e')
+        self.tab_importar = tk.Frame(self.notebook, bg='#1a1a2e')
+        self.notebook.add(self.tab_inventario, text='  📦 Inventário  ')
+        self.notebook.add(self.tab_importar, text='  🚗 Importar Pedido HONDA & GM  ')
+
         # FRAME DE LANÇAMENTO
         frame_lanc = tk.LabelFrame(
-            self.root,
+            self.tab_inventario,
             text=" LANÇAR CONTAGEM ",
             font=('Arial', 10, 'bold'),
             fg='#00d4ff',
@@ -358,7 +381,7 @@ class LancamentoInventario:
         ).pack(side='left', padx=5)
         
         # TABELA
-        frame_tabela = tk.Frame(self.root, bg='#1a1a2e')
+        frame_tabela = tk.Frame(self.tab_inventario, bg='#1a1a2e')
         frame_tabela.pack(fill='both', expand=True, padx=10, pady=5)
         
         colunas = ('Item', 'Qtd Fís', 'Qtd Fisc', 'Dif', 'Status', 'Acur%', 'Exc%', 'Falt%', 'Colab')
@@ -396,7 +419,7 @@ class LancamentoInventario:
         self.atualizar_tabela()
         
         # RESUMO
-        frame_resumo = tk.Frame(self.root, bg='#16213e', height=35)
+        frame_resumo = tk.Frame(self.tab_inventario, bg='#16213e', height=35)
         frame_resumo.pack(fill='x', padx=10, pady=2)
         
         self.lbl_resumo = tk.Label(frame_resumo, text="", font=('Arial', 10, 'bold'), fg='#00d4ff', bg='#16213e')
@@ -404,7 +427,7 @@ class LancamentoInventario:
         self.atualizar_resumo()
         
         # BOTÕES
-        frame_btn = tk.Frame(self.root, bg='#1a1a2e')
+        frame_btn = tk.Frame(self.tab_inventario, bg='#1a1a2e')
         frame_btn.pack(fill='x', padx=10, pady=10)
         
         frame_btn_esquerda = tk.Frame(frame_btn, bg='#1a1a2e')
@@ -456,6 +479,11 @@ class LancamentoInventario:
             command=self.iniciar_automacao
         ).pack(side='right', padx=20)
         
+        # ========================================
+        # ABA: IMPORTAR PEDIDO HONDA & GM
+        # ========================================
+        self.criar_aba_importar(self.tab_importar)
+
         # CRÉDITOS NO RODAPÉ
         frame_creditos = tk.Frame(self.root, bg='#1a1a2e')
         frame_creditos.pack(fill='x', pady=5)
@@ -467,7 +495,91 @@ class LancamentoInventario:
             fg='#7f8c8d',
             bg='#1a1a2e'
         ).pack()
-    
+
+    # ========================================
+    # ABA: IMPORTAR PEDIDO HONDA & GM
+    # ========================================
+    def criar_aba_importar(self, parent):
+        """Monta a aba 'Importar Pedido HONDA & GM' com o botão START."""
+        tk.Label(
+            parent,
+            text="🚗 Importar Pedido - HONDA & GM",
+            font=('Arial', 18, 'bold'),
+            fg='#00d4ff',
+            bg='#1a1a2e'
+        ).pack(pady=(50, 10))
+
+        tk.Label(
+            parent,
+            text="Clique em START para iniciar a importação no TOTVS.",
+            font=('Arial', 11),
+            fg='#b2bec3',
+            bg='#1a1a2e'
+        ).pack(pady=(0, 20))
+
+        tk.Button(
+            parent,
+            text="START",
+            font=('Arial', 34, 'bold'),
+            bg='#e84118',
+            fg='white',
+            width=14,
+            height=3,
+            cursor='hand2',
+            command=self.iniciar_importacao
+        ).pack(pady=30)
+
+        tk.Label(
+            parent,
+            text="Programa TOTVS: ESPD0001",
+            font=('Arial', 10, 'bold'),
+            fg='#00d4ff',
+            bg='#1a1a2e'
+        ).pack(pady=(20, 2))
+
+        tk.Label(
+            parent,
+            text="Diretório GM: \\\\192.168.0.9\\s\\Sawluz\\swedi\\OUTPUT\\GM\\",
+            font=('Arial', 9, 'italic'),
+            fg='#7f8c8d',
+            bg='#1a1a2e'
+        ).pack(pady=2)
+
+    def iniciar_importacao(self):
+        """Lança a automação de importação de pedido (modo 'importar')."""
+        try:
+            # DETECTAR SE É .EXE OU .PY
+            if getattr(sys, 'frozen', False):
+                script = os.path.join(DIR_BASE, "Automacao_TOTVS.exe")
+                if os.path.exists(script):
+                    print(f"🚀 Executando importação: {script}")
+                    subprocess.Popen(
+                        [script, "importar"],
+                        shell=False,
+                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+                    )
+                else:
+                    messagebox.showerror("Erro", f"Arquivo não encontrado:\n{script}")
+                    return
+            else:
+                script = os.path.join(DIR_BASE, "automacao_totvs.py")
+                if os.path.exists(script):
+                    print(f"🚀 Executando importação: {script}")
+                    subprocess.Popen(
+                        [sys.executable, script, "importar"],
+                        shell=False,
+                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+                    )
+                else:
+                    messagebox.showerror("Erro", f"Arquivo não encontrado:\n{script}")
+                    return
+
+            # Fechar a interface (a automação reabre no fim)
+            self.root.destroy()
+
+        except Exception as e:
+            messagebox.showerror("Erro", str(e))
+
     def filtrar_itens(self, event):
         valor = self.combo_item.get().upper()
         if valor == '':
