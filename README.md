@@ -28,6 +28,30 @@ lancamento_inventario.py  --(clicar "Iniciar Automação")-->  automacao_totvs.p
 
 ---
 
+## 🚗 Importar Pedido HONDA & GM (aba dedicada)
+
+A interface tem uma segunda aba, **"Importar Pedido HONDA & GM"**, com um botão
+grande **START**. Ao clicar, roda o fluxo de importação (`automacao_totvs.py importar`):
+
+1. Procura a janela do TOTVS **"DATASUL Interative"**.
+2. Se **não** achar, abre o TOTVS do zero (login → senha → Entrar → popup) e
+   aguarda até ~47s a janela aparecer.
+3. Com a janela pronta: **CTRL+X** → digita **ESPD0001** → **ENTER**.
+4. **5x** (TAB, ENTER).
+5. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\`.
+6. **4x** TAB → seta **↓** → seta **↑** → **ENTER**.
+
+Ajustes ficam no topo de `automacao_totvs.py`:
+
+- `ATALHO_ABRIR_PROGRAMA` — atalho do lançador (padrão `CTRL+X`; a automação de
+  inventário usa `CTRL+ALT+X` — troque aqui se o lançador não abrir).
+- `DIRETORIO_IMPORTACAO_GM` — diretório de origem dos pedidos.
+- `QTD_TAB_ENTER` — quantas vezes repetir (TAB, ENTER).
+- `TEMPO_ESPERA_DATASUL` — tempo máximo (s) esperando a janela aparecer (padrão 47).
+- `TEMPO_ESPERA_PROGRAMA` — tempo (s) esperando o ESPD0001 carregar.
+
+---
+
 ## 🚀 Como executar
 
 ```bash
