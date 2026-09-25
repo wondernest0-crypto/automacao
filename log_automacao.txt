@@ -1,0 +1,171 @@
+============================================================
+🤖 AUTOMAÇÃO TOTVS - LOG DETALHADO
+Iniciado em: 20/02/2026 19:28:02
+Diretório: C:\Users\faturamento3\Desktop\inventario
+Usuário: faturamento3
+============================================================
+
+[19:28:02.688] ============================================================
+[19:28:02.690] 🤖 AUTOMAÇÃO TOTVS - AJUSTE DE ESTOQUE
+[19:28:02.692] ============================================================
+[19:28:02.694] 📁 Diretório: C:\Users\faturamento3\Desktop\inventario
+[19:28:02.696] 👤 Usuário: faturamento3
+[19:28:02.698] 
+🚀 INICIANDO AUTOMAÇÃO...
+
+[19:28:02.700] 
+📂 CARREGANDO RELATÓRIO...
+[19:28:02.702] 🔍 DEBUG: Arquivo: C:\Users\faturamento3\Desktop\inventario\data\RELATORIO_INVENTARIO.xlsx
+[19:28:02.704] 🔍 DEBUG: Tamanho do arquivo: 13193 bytes
+[19:28:03.064] 🔍 DEBUG: Colunas encontradas: ['ITEM', 'QTD FÍSICA', 'QTD FISCAL', 'DIFERENÇA', 'STATUS', 'ACURACIDADE %', 'EXCESSO %', 'FALTA %', 'AJUSTADO', 'COLABORADOR', 'DATA/HORA']
+[19:28:03.067] 🔍 DEBUG: Total de linhas: 1
+[19:28:03.069] ✅ SUCESSO: Colunas mapeadas:
+[19:28:03.071] 🔍 DEBUG:   Item=ITEM
+[19:28:03.075] 🔍 DEBUG:   Qtd=QTD FÍSICA
+[19:28:03.078] 🔍 DEBUG:   Ajustado=AJUSTADO
+[19:28:03.080] 🔍 DEBUG:   Colaborador=COLABORADOR
+[19:28:03.083] 
+📋 FILTRANDO ITENS PENDENTES:
+[19:28:03.086] ✅ SUCESSO:   PENDENTE: 'VK22010' (linha 5)
+[19:28:03.090] 
+📊 RESUMO:
+[19:28:03.094] ✅ SUCESSO:   1 itens PENDENTES para processar
+[19:28:03.097]      📦 VK22010 = 1 pcs | Colab: DEIVID | Linha: 5
+[19:28:03.099] 
+📋 PREPARANDO TOTVS...
+[19:28:03.102] 🔽 Minimizando todas as janelas...
+[19:28:04.409] ✅ SUCESSO: Todas as janelas minimizadas
+[19:28:04.412] 🔍 Procurando CE0220...
+[19:28:04.418] ✅ SUCESSO: CE0220 encontrado!
+[19:28:10.948]    >> Clicando em x.png para limpar...
+[19:28:10.951] 🔍 DEBUG: 🖼️ Procurando imagem: x.png
+[19:28:10.954] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\x.png
+[19:28:10.956] 🔍 DEBUG:    Existe: True
+[19:28:11.159] 🔍 DEBUG:    ✅ Encontrada com confiança: 0.9
+[19:28:16.471] ✅ SUCESSO: Tela limpa!
+[19:28:16.474] 
+📦 TOTAL DE ITENS A PROCESSAR: 1
+[19:28:16.477] 
+============================================================
+[19:28:16.479] 📦 ITEM [1/1]
+[19:28:16.481] ============================================================
+[19:28:16.483] 
+============================================================
+[19:28:16.485] 📦 PROCESSANDO ITEM: VK22010
+[19:28:16.488]    Quantidade Física: 1
+[19:28:16.491]    Colaborador: DEIVID
+[19:28:16.494]    Linha Excel: 5
+[19:28:16.496] ============================================================
+[19:28:16.498] 🔍 Buscando: VK22010
+[19:28:16.500]    >> +.png (primeiro item)
+[19:28:16.502] 🔍 DEBUG: 🖼️ Procurando imagem: +.png
+[19:28:16.504] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\+.png
+[19:28:16.506] 🔍 DEBUG:    Existe: True
+[19:28:16.645] 🔍 DEBUG:    ✅ Encontrada com confiança: 0.9
+[19:28:18.959]    >> Aguardando 3 segundos...
+[19:28:21.962]    >> Colando via clipboard: 'VK22010'
+[19:28:22.799]    >> 2x TAB
+[19:28:23.615]    >> F5
+[19:28:29.920]    >> 3x TAB
+[19:28:31.127]    >> CTRL+ALT+E
+[19:28:36.433] ✅ SUCESSO: Exportado
+[19:28:36.437] ⏳ Aguardando Gotoexcel...
+[19:28:42.944] 🔍 Procurando Gotoexcel...
+[19:28:46.317] ✅ SUCESSO: Encontrado: C:\Temp\gotoexcel_deivid.xlsx
+[19:28:46.320] 📖 Lendo Gotoexcel...
+[19:28:47.342] 🔍 DEBUG: Gotoexcel tem 9 colunas e 4 linhas
+[19:28:47.347] ✅ SUCESSO: 1 lotes encontrados:
+[19:28:47.349]    ✅ [0] ROT29012026 (ROT) = 10 pcs
+[19:28:47.352] 📕 Fechando Gotoexcel sem salvar...
+[19:28:49.562] ✅ SUCESSO: Janela otoexcel fechada
+[19:28:49.565] 🔵 LÓGICA AC/INV
+[19:28:49.567]    📊 Físico: 1
+[19:28:49.569]    📊 Fiscal: 10
+[19:28:49.572]    📊 Diferença: -9
+[19:28:49.702] 
+📤 RETIRANDO 9 unidades de múltiplos lotes...
+[19:28:49.705]    Lotes INV: 0 | ROT: 1 | AC: 0
+[19:28:49.707]    📋 Ordem de retirada:
+[19:28:49.709]       1. [0] ROT29012026 (ROT) = 10 pcs
+[19:28:49.711]    ➡️ Retirar 9 de ROT29012026 (restante: 0)
+[19:28:49.714] 
+🔄 Retirada 1/1: 9 pcs de ROT29012026
+[19:28:53.218]    >> Clicando em cancelar.png...
+[19:28:53.221] 🔍 DEBUG: 🖼️ Procurando imagem: cancelar.png
+[19:28:53.224] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\cancelar.png
+[19:28:53.226] 🔍 DEBUG:    Existe: True
+[19:28:53.371] 🔍 DEBUG:    ✅ Encontrada com confiança: 0.9
+[19:28:58.680]    >> F5
+[19:29:04.985]    >> 3x TAB
+[19:29:06.194]    >> Posição [0], sem setas
+[19:29:06.197]    >> Enter
+[19:29:06.701]    >> 5x TAB
+[19:29:08.714]    >> Código: 91110018
+[19:29:09.268]    >> CTRL+TAB
+[19:29:09.874]    >> Quantidade: 9
+[19:29:10.208]    >> saida.png
+[19:29:10.212] 🔍 DEBUG: 🖼️ Procurando imagem: saida.png
+[19:29:10.215] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\saida.png
+[19:29:10.217] 🔍 DEBUG:    Existe: True
+[19:29:10.360] 🔍 DEBUG:    ✅ Encontrada com confiança: 0.9
+[19:29:15.681]    >> Verificando confirmar.png após saída...
+[19:29:15.684] 🔍 DEBUG: 🖼️ Procurando imagem: confirmar.png
+[19:29:15.686] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\confirmar.png
+[19:29:15.688] 🔍 DEBUG:    Existe: True
+[19:29:16.467] 🔍 DEBUG:    ✅ Encontrada com confiança: 0.4
+[19:29:18.787] ✅ SUCESSO: confirmar.png clicado após saída!
+[19:29:21.790]    >> certo.png
+[19:29:21.794] 🔍 DEBUG: 🖼️ Procurando imagem: certo.png
+[19:29:21.797] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\certo.png
+[19:29:21.799] 🔍 DEBUG:    Existe: True
+[19:29:21.932] 🔍 DEBUG:    ✅ Encontrada com confiança: 0.9
+[19:29:27.242]    >> Aguardando 5 segundos para verificar popup de vencimento...
+[19:29:32.246]    >> Verificando popup de vencimento (DETECÇÃO PRECISA)...
+[19:29:32.249] 🔍 DEBUG: 🖼️ Procurando imagem EXATA: vencimento.png
+[19:29:32.252] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\vencimento.png
+[19:29:32.254] 🔍 DEBUG:    Existe: True
+[19:29:32.543] 🔍 DEBUG: Detecção exata - não encontrado ou erro: 
+[19:29:32.548] 🔍 DEBUG:    ❌ Não encontrada
+[19:29:32.852] 🔍 DEBUG: 🖼️ Procurando imagem EXATA: vencimento.png
+[19:29:32.855] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\vencimento.png
+[19:29:32.857] 🔍 DEBUG:    Existe: True
+[19:29:33.137] 🔍 DEBUG: Detecção exata - não encontrado ou erro: 
+[19:29:33.143] 🔍 DEBUG:    ❌ Não encontrada
+[19:29:33.145]    >> Nenhum popup de vencimento detectado ✓
+[19:29:33.148] ✅ SUCESSO: Retirado 9 pcs de ROT29012026!
+[19:29:33.151] 
+📝 ATUALIZANDO RELATÓRIO: VK22010
+[19:29:33.154] 🔍 DEBUG:   Qtd Física: 1
+[19:29:33.156] 🔍 DEBUG:   Qtd Fiscal recebida: 10
+[19:29:33.159] 🔍 DEBUG:   Diferença: -9
+[19:29:33.202] 🔍 DEBUG:   Tentando linha específica: 5
+[19:29:33.205] ✅ SUCESSO:   Linha específica confirmada: 5
+[19:29:33.207] ✅ SUCESSO:   Atualizando linha 5...
+[19:29:33.209] 🔍 DEBUG:   Qtd Fiscal FINAL: 10
+[19:29:33.212] 🔍 DEBUG:   Atualizando aba HISTORICO_AJUSTES...
+[19:29:33.214] 🔍 DEBUG:   Salvando arquivo...
+[19:29:33.275] ✅ SUCESSO:   Relatório salvo! Linha 5 marcada como AJUSTADO
+[19:29:33.278] ✅ SUCESSO:   Histórico atualizado na linha 12
+[19:29:33.280] 🔍 DEBUG:   Adicionando ao histórico...
+[19:29:33.347] 🔍 DEBUG:   Histórico atualizado: 1 registros
+[19:29:33.350] ✅ SUCESSO: Item VK22010 processado com sucesso!
+[19:29:33.353] 
+============================================================
+[19:29:33.355] 🏁 FINALIZANDO AUTOMAÇÃO
+[19:29:33.358] ============================================================
+[19:29:33.360] 
+📊 RESUMO: 1 itens processados
+[19:29:33.362] ✅ SUCESSO:    VK22010 - AJUSTADO (dif: -9)
+[19:29:33.365] 
+📕 Fechando CE0220...
+[19:29:33.368] 🔍 DEBUG: 🖼️ Procurando imagem: x.png
+[19:29:33.371] 🔍 DEBUG:    Caminho completo: C:\Users\faturamento3\Desktop\inventario\img\x.png
+[19:29:33.374] 🔍 DEBUG:    Existe: True
+[19:29:33.635] 🔍 DEBUG:    ✅ Encontrada com confiança: 0.8
+[19:29:36.456] 🔽 Minimizando todas as janelas...
+[19:29:37.762] ✅ SUCESSO: Todas as janelas minimizadas
+[19:29:37.765] 
+🔄 Reabrindo interface...
+[19:29:37.768] 🔍 DEBUG: Script: C:\Users\faturamento3\Desktop\inventario\lancamento_inventario.py
+[19:29:37.770] 🔍 DEBUG: Existe: True
+[19:29:37.823] ✅ SUCESSO: Interface reaberta!

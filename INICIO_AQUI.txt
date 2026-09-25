@@ -1,0 +1,185 @@
+================================================================================
+                    🚀 COMECE AQUI - SISTEMA DE INVENTÁRIO
+                           Versão 2.1 - 20/02/2026
+================================================================================
+
+Olá! Este é o Sistema de Automação de Inventário TOTVS atualizado.
+
+Foram realizados 4 ajustes importantes:
+  1. ✅ Logs detalhados de caminhos de imagens
+  2. ✅ Dashboard com gráficos melhorados
+  3. ✅ Modo compartilhamento para uso em rede
+  4. ✅ Sincronização automática CONTAGEM → HISTORICO_AJUSTES
+
+
+================================================================================
+                        📋 PRIMEIROS PASSOS
+================================================================================
+
+1️⃣ TESTAR O SISTEMA
+   ────────────────────────────────────────────────────────────────────────
+   Clique duas vezes em:
+   
+   ► executar_testes.bat
+   
+   Isso vai verificar se tudo está funcionando corretamente.
+
+
+2️⃣ CRIAR PLANILHA (se não existir)
+   ────────────────────────────────────────────────────────────────────────
+   Clique duas vezes em:
+   
+   ► criar_planilha.bat
+   
+   Isso vai criar a planilha RELATORIO_INVENTARIO.xlsx com a estrutura correta.
+
+
+3️⃣ CONFIGURAR PARA REDE
+   ────────────────────────────────────────────────────────────────────────
+   ⚠️ IMPORTANTE: Feche o Excel antes!
+   
+   Clique duas vezes em:
+   
+   ► configurar_rede.bat
+   
+   Isso vai preparar a planilha para uso em rede compartilhada.
+
+
+4️⃣ LER A DOCUMENTAÇÃO
+   ────────────────────────────────────────────────────────────────────────
+   Abra um destes arquivos:
+   
+   ► GUIA_RAPIDO.md          (Guia prático passo a passo)
+   ► README.md               (Documentação completa)
+   ► RESUMO_AJUSTES.txt      (Resumo das mudanças)
+
+
+================================================================================
+                        📚 DOCUMENTAÇÃO DISPONÍVEL
+================================================================================
+
+Para USUÁRIOS:
+  • GUIA_RAPIDO.md          - Como usar o sistema
+  • README.md               - Visão geral completa
+
+Para DESENVOLVEDORES:
+  • AJUSTES_REALIZADOS.md   - Detalhes técnicos
+  • INDICE_ARQUIVOS.md      - Lista de todos os arquivos
+
+Para GESTORES:
+  • RESUMO_AJUSTES.txt      - Resumo executivo
+  • CHECKLIST_IMPLEMENTACAO.md - Checklist de implementação
+
+
+================================================================================
+                        🔧 SCRIPTS DISPONÍVEIS
+================================================================================
+
+TESTES:
+  executar_testes.bat       - Testa toda a estrutura
+  testar_ajustes.py         - Script de teste completo
+
+CONFIGURAÇÃO:
+  configurar_rede.bat       - Prepara para rede
+  configurar_compartilhamento.py - Script de configuração
+
+CRIAÇÃO:
+  criar_planilha.bat        - Cria planilha
+  criar_planilha_exemplo.py - Script de criação
+
+AUTOMAÇÃO:
+  lancamento_inventario.py  - Interface gráfica
+  automacao_totvs.py        - Automação principal
+
+
+================================================================================
+                        ❓ PERGUNTAS FREQUENTES
+================================================================================
+
+P: Por onde começar?
+R: Execute "executar_testes.bat" e depois leia "GUIA_RAPIDO.md"
+
+P: Como configurar para rede?
+R: Execute "configurar_rede.bat" (feche o Excel antes!)
+
+P: Onde ver os logs?
+R: Abra o arquivo "log_automacao.txt"
+
+P: Como criar a planilha?
+R: Execute "criar_planilha.bat"
+
+P: O que mudou na versão 2.1?
+R: Leia "RESUMO_AJUSTES.txt" ou "AJUSTES_REALIZADOS.md"
+
+
+================================================================================
+                        🆘 PRECISA DE AJUDA?
+================================================================================
+
+1. Verifique o arquivo: log_automacao.txt
+2. Execute: executar_testes.bat
+3. Leia: GUIA_RAPIDO.md (seção "Solução de Problemas")
+4. Contate: Deivid - Faturamento
+
+
+================================================================================
+                        ✅ CHECKLIST RÁPIDO
+================================================================================
+
+Antes de usar:
+  [ ] Python 3.x instalado
+  [ ] Bibliotecas instaladas (pandas, openpyxl, pyautogui, selenium)
+  [ ] Microsoft Edge instalado
+  [ ] Executou "executar_testes.bat"
+  [ ] Criou planilha (se necessário)
+  [ ] Configurou para rede (se necessário)
+
+Pronto para usar:
+  [ ] Todos os testes passaram
+  [ ] Planilha existe em data/RELATORIO_INVENTARIO.xlsx
+  [ ] Imagens estão na pasta img/
+  [ ] Leu a documentação
+
+
+================================================================================
+                        🎯 PRÓXIMO PASSO
+================================================================================
+
+                    👉 Execute: executar_testes.bat 👈
+
+                    Depois leia: GUIA_RAPIDO.md
+
+
+================================================================================
+                        📞 INFORMAÇÕES
+================================================================================
+
+Desenvolvedor: Deivid - Faturamento
+Versão: 2.1
+Data: 20/02/2026
+Sistema: Windows
+Python: 3.x
+
+Arquivos principais:
+  • automacao_totvs.py (MODIFICADO)
+  • gerar_planilha.py (MODIFICADO)
+  • configurar_compartilhamento.py (NOVO)
+  • testar_ajustes.py (NOVO)
+
+Documentação:
+  • GUIA_RAPIDO.md
+  • README.md
+  • AJUSTES_REALIZADOS.md
+
+
+================================================================================
+                        🎉 BEM-VINDO!
+================================================================================
+
+Este sistema foi atualizado com melhorias importantes para facilitar o uso
+em rede e fornecer logs mais detalhados.
+
+Comece executando "executar_testes.bat" para verificar se tudo está OK!
+
+
+================================================================================
