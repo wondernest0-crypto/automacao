@@ -507,7 +507,7 @@ class LancamentoInventario:
             font=('Arial', 18, 'bold'),
             fg='#00d4ff',
             bg='#1a1a2e'
-        ).pack(pady=(50, 10))
+        ).pack(pady=(22, 8))
 
         tk.Label(
             parent,
@@ -515,19 +515,62 @@ class LancamentoInventario:
             font=('Arial', 11),
             fg='#b2bec3',
             bg='#1a1a2e'
-        ).pack(pady=(0, 20))
+        ).pack(pady=(0, 12))
 
+        # --------------------------------------------------
+        # PASSO A PASSO (o que o START vermelho faz)
+        # --------------------------------------------------
+        frame_passos = tk.LabelFrame(
+            parent,
+            text=" O QUE O START FAZ ",
+            font=('Arial', 9, 'bold'),
+            fg='#00d4ff',
+            bg='#1a1a2e',
+            padx=10,
+            pady=8
+        )
+        frame_passos.pack(pady=(0, 10))
+
+        tk.Label(
+            frame_passos,
+            text=(
+                "1) Minimiza todas as janelas\n"
+                "2) Abre/traz o \"DATASUL Interactive\" para a frente\n"
+                "3) CTRL+X  ->  abre a janela do lançador de programas\n"
+                "4) Digita ESPD0001 e tecla ENTER\n"
+                "5) 5x (TAB + ENTER)  ->  cola a pasta GM  ->  4x TAB\n"
+                "        ->  seta ↓  ->  seta ↑  ->  ENTER (importa)"
+            ),
+            font=('Arial', 9),
+            fg='#dfe6e9',
+            bg='#1a1a2e',
+            justify='left'
+        ).pack(anchor='w')
+
+        tk.Label(
+            parent,
+            text="A tela fica só com o TOTVS durante a importação (as janelas são minimizadas).",
+            font=('Arial', 8, 'italic'),
+            fg='#7f8c8d',
+            bg='#1a1a2e'
+        ).pack(pady=(6, 0))
+
+        # --------------------------------------------------
+        # BOTÃO START (vermelho)
+        # --------------------------------------------------
         tk.Button(
             parent,
             text="START",
             font=('Arial', 34, 'bold'),
             bg='#e84118',
             fg='white',
+            activebackground='#c23616',
+            activeforeground='white',
             width=14,
             height=3,
             cursor='hand2',
             command=self.iniciar_importacao
-        ).pack(pady=30)
+        ).pack(pady=15)
 
         tk.Label(
             parent,
@@ -535,7 +578,7 @@ class LancamentoInventario:
             font=('Arial', 10, 'bold'),
             fg='#00d4ff',
             bg='#1a1a2e'
-        ).pack(pady=(20, 2))
+        ).pack(pady=(5, 2))
 
         tk.Label(
             parent,
@@ -548,12 +591,12 @@ class LancamentoInventario:
     def iniciar_importacao(self):
         """Lança a automação de importação de pedido (modo 'importar').
 
-        Observações importantes:
-        - A janela SÓ é fechada depois que o subprocesso foi confirmado como
-          iniciado. Antes ela fechava primeiro e, se o Popen falhasse, o clique
-          parecia "não fazer nada".
-        - Não usamos CREATE_NO_WINDOW aqui de propósito: a automação precisa
-          do console visível para mostrar o log e qualquer erro.
+        O processo é aberto DESTACADO da interface (DETACHED_PROCESS), para
+        continuar rodando depois que esta janela é fechada. A janela só é
+        fechada DEPOIS que o subprocesso foi confirmado como iniciado - antes
+        ela fechava primeiro e, se o Popen falhasse, o clique parecia
+        "não fazer nada". Todo o progresso fica no log (log_automacao.txt),
+        porque o .exe roda sem console.
         """
         try:
             # DETECTAR SE É .EXE OU .PY

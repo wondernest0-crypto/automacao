@@ -31,26 +31,53 @@ lancamento_inventario.py  --(clicar "Iniciar Automação")-->  automacao_totvs.p
 ## 🚗 Importar Pedido HONDA & GM (aba dedicada)
 
 A interface tem uma segunda aba, **"Importar Pedido HONDA & GM"**, com um botão
-grande **START**. Ao clicar, roda o fluxo de importação (`automacao_totvs.py importar`):
+grande e vermelho **START**. Ao clicar, roda o fluxo de importação
+(`automacao_totvs.py importar`):
 
-1. Procura a janela do TOTVS (**"DATASUL Interactive"**, **"DATASUL Interative"**
-   ou só **"DATASUL"** — a busca tenta as variações e, se não achar nenhuma,
-   grava no log a lista de janelas abertas para você conferir o título real).
-2. Se **não** achar, abre o TOTVS do zero (login → senha → Entrar → popup) e
+1. **Minimiza TODAS as janelas** (`WIN+M` + pygetwindow como reforço para as
+   janelas que ignoram o atalho). O `WIN+M` é usado de propósito no lugar do
+   `WIN+D`: o `WIN+D` é um *liga/desliga* e, se a área de trabalho já estivesse
+   visível, ele **restaurava** as janelas em vez de minimizar.
+2. Procura a janela do TOTVS (**"DATASUL Interactive"**, **"DATASUL Interative"**
+   ou só **"DATASUL"** — a busca tenta as variações, ignora as janelas de
+   navegador e, se não achar nenhuma, grava no log a lista de janelas abertas
+   para você conferir o título real).
+3. Se **não** achar, abre o TOTVS do zero (login → senha → Entrar → popup) e
    aguarda até ~47s a janela aparecer.
-3. Com a janela pronta: **CTRL+X** → digita **ESPD0001** → **ENTER**.
-4. **5x** (TAB, ENTER).
-5. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\`.
-6. **4x** TAB → seta **↓** → seta **↑** → **ENTER**.
+4. Traz o **"DATASUL Interactive" para a frente** e **confirma que ele é a
+   janela ativa** (a que recebe as teclas): sem essa confirmação o `CTRL+X`
+   iria para outro programa. Como reforço são usados
+   `SetForegroundWindow`/`BringWindowToTop` e, se ainda assim o foco não for
+   confirmado, o *truque do TAB* (o Windows passa a considerar a janela ativa).
+5. **CTRL+X** → abre a **janela do lançador de programas**. A automação espera
+   essa janela aparecer (pelos títulos conhecidos **ou** por "qualquer janela
+   nova" que surja depois do atalho), traz ela para a frente e só então digita.
+6. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
+   antes de digitar, para não juntar com um código que já estivesse lá).
+7. **5x** (TAB, ENTER).
+8. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\`.
+9. **4x** TAB → seta **↓** → seta **↑** → **ENTER** (importa) e reabre a
+   interface gráfica.
+
+Tudo é registrado em `log_automacao.txt` (o `.exe` roda sem console), com um
+passo a passo numerado igual a este.
 
 Ajustes ficam no topo de `automacao_totvs.py`:
 
-- `ATALHO_ABRIR_PROGRAMA` — atalho do lançador (padrão `CTRL+X`; a automação de
-  inventário usa `CTRL+ALT+X` — troque aqui se o lançador não abrir).
+- `ATALHO_ABRIR_PROGRAMA` — atalho do lançador (padrão `CTRL+X`).
+- `ATALHO_ABRIR_PROGRAMA_ALT` / `TENTAR_ATALHO_ALTERNATIVO` — atalho alternativo
+  (`CTRL+ALT+X`, o mesmo usado na automação de inventário) tentado
+  automaticamente quando a janela do lançador não aparece com o `CTRL+X`.
+- `LIMPAR_CAMPO_LANCADOR` — limpar o campo (`CTRL+A` + `DELETE`) antes de digitar.
 - `DIRETORIO_IMPORTACAO_GM` — diretório de origem dos pedidos.
 - `QTD_TAB_ENTER` — quantas vezes repetir (TAB, ENTER).
-- `TEMPO_ESPERA_DATASUL` — tempo máximo (s) esperando a janela aparecer (padrão 47).
+- `TEMPO_ESPERA_DATASUL` — tempo máximo (s) esperando a janela do DATASUL (padrão 47).
+- `TEMPO_ESPERA_LANCADOR` — tempo (s) esperando a janela do lançador (padrão 6).
+- `TEMPO_ESPERA_FOCO` — tempo (s) esperando o DATASUL virar a janela ativa (padrão 2.5).
 - `TEMPO_ESPERA_PROGRAMA` — tempo (s) esperando o ESPD0001 carregar.
+- `TITULOS_LANCADOR` — títulos do lançador de programas (opcional: a janela nova
+  já é detectada mesmo que o título mude).
+- `NAVEGADORES` — usados apenas para não confundir o navegador com o DATASUL.
 
 ---
 
@@ -146,6 +173,8 @@ para olhar em caso de problema.
 | Planilha não existe | Verifique `data/RELATORIO_INVENTARIO.xlsx`. |
 | Erro de permissão na planilha | Feche o arquivo no Excel antes de rodar a automação. |
 | START da aba "Importar Pedido" não faz nada | Abra `log_automacao.txt`: se o timestamp **não** mudou, o `Automacao_TOTVS.exe` nem iniciou (confira se ele está na mesma pasta da interface). Se mudou, o log mostra em qual passo parou e lista as janelas abertas — confira ali o título real da janela do DATASUL. |
+| O `CTRL+X` não abre a janela do lançador | O log mostra `A janela do lançador não apareceu com CTRL+X. Tentando CTRL+ALT+X...` — a automação já tenta o atalho alternativo sozinha. Se nenhum dos dois abrir, confira o atalho direto no TOTVS e ajuste `ATALHO_ABRIR_PROGRAMA` no topo de `automacao_totvs.py`. |
+| O texto digitou no lugar errado (não no TOTVS) | Significa que o DATASUL não era a janela ativa. O log traz `Não confirmei o primeiro plano do DATASUL; aplicando o truque do TAB...`; se o foco não for confirmado, a automação **para** e avisa na tela em vez de digitar às cegas. Clique na janela do DATASUL e clique em START de novo. |
 
 ---
 
