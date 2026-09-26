@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -69,7 +69,6 @@ jobs:
             Write-Host "$exe -> assinatura '$assinatura'"
             if ($assinatura -ne 'MZ') { Write-Error "$exe nao parece um executavel Windows." ; exit 1 }
           }
-
       - name: Montar o pacote final
         shell: pwsh
         run: |
@@ -91,3 +90,22 @@ jobs:
           path: Sistema_Inventario_Windows.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Listar o conteudo do pacote (para conferencia)
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path 'Sistema_Inventario_Windows.zip'))
+          $zip.Entries | Sort-Object FullName | ForEach-Object { '{0,10:N1} KB  {1}' -f ($_.Length/1KB), $_.FullName }
+          $zip.Dispose()
+          Write-Host '--- SHA256 ---'
+          Get-FileHash 'Sistema_Inventario_Windows.zip' -Algorithm SHA256 | Format-List
+
+      - name: Publicar no GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = 'build-${{ github.run_number }}'
+          gh release create $tag 'Sistema_Inventario_Windows.zip' --repo '${{ github.repository }}' --title 'Sistema de Inventario - build ${{ github.run_number }}' --notes 'Compilado automaticamente no Windows a partir do commit ${{ github.sha }}.'
+          Write-Host "Download: https://github.com/${{ github.repository }}/releases/download/$tag/Sistema_Inventario_Windows.zip"
