@@ -28,8 +28,15 @@ if not exist "msedgedriver.exe" (
 )
 echo ✅ msedgedriver.exe encontrado!
 
-if not exist "assets\icone.ico" (
-    echo ⚠️ AVISO: icone.ico nao encontrado em assets\
+REM A pasta assets\ precisa existir: o --add-data abaixo aborta o build se ela
+REM nao existir. O icone eh opcional, entao o --icon so entra se o .ico existir.
+if not exist "assets" mkdir "assets"
+
+set "ICONE_FLAG="
+if exist "assets\icone.ico" (
+    set "ICONE_FLAG=--icon=assets\icone.ico"
+) else (
+    echo ⚠️ AVISO: icone.ico nao encontrado em assets\ - compilando sem icone
 )
 echo.
 
@@ -38,7 +45,7 @@ echo [2/5] Compilando Interface Principal...
 echo ============================================
 python -m PyInstaller --noconfirm --onefile --windowed ^
     --name "Sistema_Inventario" ^
-    --icon="assets\icone.ico" ^
+    %ICONE_FLAG% ^
     --add-data "img;img" ^
     --add-data "data;data" ^
     --add-data "assets;assets" ^
@@ -80,9 +87,12 @@ echo ============================================
 REM NOTA: Usando --console para ver logs em tempo real
 REM       Troque para --windowed se quiser esconder o console
 
-python -m PyInstaller --noconfirm --onefile --windowed ^
+REM       (antes estava --windowed aqui, contradizendo a nota acima: por isso
+REM        nenhum erro da automacao aparecia na tela)
+
+python -m PyInstaller --noconfirm --onefile --console ^
     --name "Automacao_TOTVS" ^
-    --icon="assets\icone.ico" ^
+    %ICONE_FLAG% ^
     --add-data "img;img" ^
     --add-data "data;data" ^
     --add-data "assets;assets" ^

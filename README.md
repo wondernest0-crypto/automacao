@@ -33,7 +33,9 @@ lancamento_inventario.py  --(clicar "Iniciar Automação")-->  automacao_totvs.p
 A interface tem uma segunda aba, **"Importar Pedido HONDA & GM"**, com um botão
 grande **START**. Ao clicar, roda o fluxo de importação (`automacao_totvs.py importar`):
 
-1. Procura a janela do TOTVS **"DATASUL Interative"**.
+1. Procura a janela do TOTVS (**"DATASUL Interactive"**, **"DATASUL Interative"**
+   ou só **"DATASUL"** — a busca tenta as variações e, se não achar nenhuma,
+   grava no log a lista de janelas abertas para você conferir o título real).
 2. Se **não** achar, abre o TOTVS do zero (login → senha → Entrar → popup) e
    aguarda até ~47s a janela aparecer.
 3. Com a janela pronta: **CTRL+X** → digita **ESPD0001** → **ENTER**.
@@ -143,6 +145,7 @@ para olhar em caso de problema.
 | TOTVS não abre | Confira `msedgedriver.exe` (versão compatível com o Edge) e as credenciais/URL em `automacao_totvs.py`. |
 | Planilha não existe | Verifique `data/RELATORIO_INVENTARIO.xlsx`. |
 | Erro de permissão na planilha | Feche o arquivo no Excel antes de rodar a automação. |
+| START da aba "Importar Pedido" não faz nada | Abra `log_automacao.txt`: se o timestamp **não** mudou, o `Automacao_TOTVS.exe` nem iniciou (confira se ele está na mesma pasta da interface). Se mudou, o log mostra em qual passo parou e lista as janelas abertas — confira ali o título real da janela do DATASUL. |
 
 ---
 

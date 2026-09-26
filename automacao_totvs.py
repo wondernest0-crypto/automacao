@@ -203,7 +203,62 @@ class AutomacaoTOTVS:
         except:
             pass
         return None
-    
+
+    # ========================================
+    # JANELA DO DATASUL - BUSCA TOLERANTE
+    # ========================================
+    # O título da janela muda conforme a versão do DATASUL ("Interactive" /
+    # "Interative") e ainda ganha sufixos (ex.: "DATASUL Interactive - CE0220").
+    # A aba de importação buscava APENAS "DATASUL Interative", sem fallback:
+    # se o título real fosse "Interactive" ela nunca achava a janela, caía no
+    # login pelo navegador, esperava TEMPO_ESPERA_DATASUL em vão e abortava -
+    # como o .exe não tem console, nada aparecia na tela.
+    TITULOS_DATASUL = (
+        "DATASUL Interactive",
+        "DATASUL Interative",
+        "DATASUL interactive",
+        "DATASUL interative",
+        "DATASUL",
+    )
+
+    def encontrar_janela_datasul(self):
+        """Procura a janela do DATASUL tentando todas as variações de título.
+
+        Retorna a janela encontrada, ou None. Quando não acha nada, grava no
+        log a lista de janelas abertas - assim dá para ver o título real.
+        """
+        for titulo in self.TITULOS_DATASUL:
+            janela = self.encontrar_janela(titulo)
+            if janela:
+                self.log_sucesso(f"Janela DATASUL encontrada (casou com '{titulo}'): '{janela.title}'")
+                return janela
+
+        self.log_aviso("Nenhuma janela DATASUL encontrada.")
+        self.log_debug(f"Títulos tentados: {', '.join(self.TITULOS_DATASUL)}")
+        try:
+            abertas = [j.title for j in gw.getAllWindows() if j.title and j.title.strip()]
+            self.log_debug(f"Janelas abertas agora: {abertas}")
+        except Exception as e:
+            self.log_debug(f"Não consegui listar as janelas abertas: {e}")
+        return None
+
+    def mostrar_erro_visivel(self, titulo, mensagem):
+        """Mostra uma caixa de erro na tela.
+
+        O .exe da automação é compilado sem console, então qualquer exceção
+        desaparece sem deixar rastro visível. Isso garante que o usuário veja
+        o que aconteceu em vez de achar que "não fez nada".
+        """
+        try:
+            import tkinter as tk
+            from tkinter import messagebox
+            raiz = tk.Tk()
+            raiz.withdraw()
+            messagebox.showerror(titulo, mensagem)
+            raiz.destroy()
+        except Exception as e:
+            self.log_aviso(f"Não consegui exibir a caixa de erro: {e}")
+
     def trazer_frente(self, janela):
         try:
             if janela.isMinimized:
@@ -421,14 +476,10 @@ class AutomacaoTOTVS:
         
         self.log_aviso("CE0220 não está aberto")
         
-        # VERIFICAÇÃO 2: DATASUL interactive está aberto?
-        self.log("🔍 Procurando 'DATASUL interactive'...")
-        janela = self.encontrar_janela("DATASUL interactive")
-        
-        if not janela:
-            self.log("🔍 Procurando 'DATASUL'...")
-            janela = self.encontrar_janela("DATASUL")
-        
+        # VERIFICAÇÃO 2: alguma janela do DATASUL está aberta?
+        self.log("🔍 Procurando janela do DATASUL...")
+        janela = self.encontrar_janela_datasul()
+
         # ========================================
         # 🌐 SE NÃO ENCONTRAR DATASUL, ABRIR VIA NAVEGADOR
         # ========================================
@@ -2106,46 +2157,67 @@ class AutomacaoTOTVS:
         diretorio = DIRETORIO_IMPORTACAO_GM
 
         # --------------------------------------------------
-        # PASSO 1: Procurar a janela "DATASUL Interative"
+        # PASSO 1: Procurar a janela do DATASUL (tolerante a variações)
         # --------------------------------------------------
-        self.log("🔍 Procurando janela 'DATASUL Interative'...")
-        janela = self.encontrar_janela("DATASUL Interative")
+        self.log("🔍 Procurando janela do DATASUL...")
+        janela = self.encontrar_janela_datasul()
 
         # --------------------------------------------------
         # PASSO 2: Se não achar, abre o TOTVS do zero e
         #          aguarda até TEMPO_ESPERA_DATASUL a janela aparecer
         # --------------------------------------------------
         if not janela:
-            self.log_aviso("⚠️ 'DATASUL Interative' não encontrado!")
+            self.log_aviso("⚠️ Janela do DATASUL não encontrada!")
             self.log("🌐 Abrindo TOTVS (login -> senha -> Entrar -> popup)...")
 
             if not self._login_totvs_navegador():
                 self.log_erro("❌ Falha ao abrir/logar no TOTVS!")
+                self.log_erro(f"   Verifique: {EDGE_DRIVER_PATH} existe? A versão do driver bate com o Edge instalado?")
+                self.mostrar_erro_visivel(
+                    "Importar Pedido - ERRO",
+                    "Não foi possível abrir/logar no TOTVS pelo navegador.\n\n"
+                    f"Driver esperado: {EDGE_DRIVER_PATH}\n"
+                    f"Log: {ARQUIVO_LOG}"
+                )
                 self.reabrir_interface()
                 return False
 
-            self.log(f"   >> Aguardando 'DATASUL Interative' (até {TEMPO_ESPERA_DATASUL}s)...")
+            self.log(f"   >> Aguardando a janela do DATASUL (até {TEMPO_ESPERA_DATASUL}s)...")
             for i in range(TEMPO_ESPERA_DATASUL):
                 time.sleep(1)
-                janela = self.encontrar_janela("DATASUL Interative")
+                janela = self.encontrar_janela_datasul()
                 if janela:
-                    self.log_sucesso(f"'DATASUL Interative' apareceu após {i + 1}s!")
+                    self.log_sucesso(f"Janela do DATASUL apareceu após {i + 1}s!")
                     break
 
             self._fechar_driver_login()
 
             if not janela:
-                self.log_erro("❌ 'DATASUL Interative' não apareceu no tempo esperado!")
+                self.log_erro("❌ A janela do DATASUL não apareceu no tempo esperado!")
+                self.mostrar_erro_visivel(
+                    "Importar Pedido - ERRO",
+                    f"A janela do DATASUL não apareceu em {TEMPO_ESPERA_DATASUL}s.\n\n"
+                    f"Abra o TOTVS manualmente e clique em START de novo.\n"
+                    f"Log (lista as janelas abertas): {ARQUIVO_LOG}"
+                )
                 self.reabrir_interface()
                 return False
         else:
-            self.log_sucesso("'DATASUL Interative' já estava aberto!")
+            self.log_sucesso("Janela do DATASUL já estava aberta!")
 
         # --------------------------------------------------
         # PASSO 3: Trazer para frente e abrir o ESPD0001
         # --------------------------------------------------
-        self.log("🔺 Trazendo 'DATASUL Interative' para frente...")
-        self.trazer_frente(janela)
+        self.log("🔺 Trazendo a janela do DATASUL para frente...")
+        if not self.trazer_frente(janela):
+            self.log_erro("❌ Não consegui trazer a janela do DATASUL para frente!")
+            self.mostrar_erro_visivel(
+                "Importar Pedido - ERRO",
+                "Não consegui ativar a janela do DATASUL.\n"
+                "Clique nela manualmente e clique em START de novo."
+            )
+            self.reabrir_interface()
+            return False
         self.esperar(TEMPO_MEDIO)
 
         atalho = '+'.join(k.upper() for k in ATALHO_ABRIR_PROGRAMA)
@@ -2277,7 +2349,23 @@ if __name__ == "__main__":
     bot = AutomacaoTOTVS()
     # Modo "importar" roda o fluxo de Importar Pedido HONDA & GM (ESPD0001).
     # Sem argumento, roda a automação de ajuste de inventário (padrão).
-    if len(sys.argv) > 1 and sys.argv[1].lower() in ("importar", "importacao", "import"):
-        bot.importar_pedido()
-    else:
-        bot.executar()
+    modo_importar = len(sys.argv) > 1 and sys.argv[1].lower() in ("importar", "importacao", "import")
+
+    # O .exe roda sem console: sem este bloco qualquer exceção some no ar e
+    # o usuário só vê a interface fechar "sem fazer nada".
+    try:
+        if modo_importar:
+            bot.importar_pedido()
+        else:
+            bot.executar()
+    except Exception:
+        erro = traceback.format_exc()
+        bot.log_erro("EXCEÇÃO NÃO TRATADA:\n" + erro)
+        bot.mostrar_erro_visivel(
+            "Automação TOTVS - ERRO",
+            "A automação parou com um erro inesperado.\n\n"
+            f"{erro}\n"
+            f"Log completo: {ARQUIVO_LOG}"
+        )
+        bot.reabrir_interface()
+        sys.exit(1)
