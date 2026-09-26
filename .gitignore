@@ -1,0 +1,13 @@
+# Build (PyInstaller)
+build/
+dist/
+*.manifest
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Icone local (opcional, gerado/colocado a mao)
+assets/
