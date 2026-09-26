@@ -546,39 +546,62 @@ class LancamentoInventario:
         ).pack(pady=2)
 
     def iniciar_importacao(self):
-        """Lança a automação de importação de pedido (modo 'importar')."""
+        """Lança a automação de importação de pedido (modo 'importar').
+
+        Observações importantes:
+        - A janela SÓ é fechada depois que o subprocesso foi confirmado como
+          iniciado. Antes ela fechava primeiro e, se o Popen falhasse, o clique
+          parecia "não fazer nada".
+        - Não usamos CREATE_NO_WINDOW aqui de propósito: a automação precisa
+          do console visível para mostrar o log e qualquer erro.
+        """
         try:
             # DETECTAR SE É .EXE OU .PY
             if getattr(sys, 'frozen', False):
                 script = os.path.join(DIR_BASE, "Automacao_TOTVS.exe")
-                if os.path.exists(script):
-                    print(f"🚀 Executando importação: {script}")
-                    subprocess.Popen(
-                        [script, "importar"],
-                        shell=False,
-                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-                    )
-                else:
-                    messagebox.showerror("Erro", f"Arquivo não encontrado:\n{script}")
-                    return
+                comando = [script, "importar"]
             else:
                 script = os.path.join(DIR_BASE, "automacao_totvs.py")
-                if os.path.exists(script):
-                    print(f"🚀 Executando importação: {script}")
-                    subprocess.Popen(
-                        [sys.executable, script, "importar"],
-                        shell=False,
-                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-                    )
-                else:
-                    messagebox.showerror("Erro", f"Arquivo não encontrado:\n{script}")
-                    return
+                comando = [sys.executable, script, "importar"]
 
-            # Fechar a interface (a automação reabre no fim)
-            self.root.destroy()
+            if not os.path.exists(script):
+                messagebox.showerror(
+                    "Erro",
+                    f"Arquivo da automação não encontrado:\n{script}\n\n"
+                    f"Pasta do programa: {DIR_BASE}\n"
+                    "Rode compilar.bat para gerar os .exe novamente."
+                )
+                return
+
+            driver = os.path.join(DIR_BASE, "msedgedriver.exe")
+            if not os.path.exists(driver):
+                messagebox.showwarning(
+                    "Aviso",
+                    f"msedgedriver.exe não encontrado em:\n{driver}\n\n"
+                    "Se o TOTVS não estiver aberto, a automação não vai "
+                    "conseguir abrir pelo navegador."
+                )
+
+            print(f"🚀 Executando importação: {' '.join(comando)}")
+            subprocess.Popen(
+                comando,
+                shell=False,
+                cwd=DIR_BASE,
+                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            )
 
         except Exception as e:
-            messagebox.showerror("Erro", str(e))
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror(
+                "Erro ao iniciar a importação",
+                f"{e}\n\nPasta do programa: {DIR_BASE}"
+            )
+            return
+
+        # Só fecha a interface depois que a automação foi lançada com sucesso
+        # (a automação reabre a interface no fim).
+        self.root.destroy()
 
     def filtrar_itens(self, event):
         valor = self.combo_item.get().upper()

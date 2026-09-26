@@ -1,0 +1,111 @@
+name: Gerar EXE (Windows)
+
+# Gera os .exe do sistema sem precisar de Python na maquina de quem vai usar.
+# Roda a cada push e tambem pode ser disparado manualmente em
+# Actions -> "Gerar EXE (Windows)" -> Run workflow.
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Baixar o codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Verificar arquivos necessarios
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'msedgedriver.exe')) {
+            Write-Error 'msedgedriver.exe nao encontrado na raiz do projeto.'
+            exit 1
+          }
+          # A pasta assets\ precisa existir porque entra no --add-data abaixo.
+          if (-not (Test-Path 'assets')) { New-Item -ItemType Directory -Path 'assets' | Out-Null }
+          if (-not (Test-Path 'assets\icone.ico')) {
+            Write-Host 'AVISO: assets\icone.ico ausente - compilando sem icone.'
+          }
+
+      - name: Compilar Sistema_Inventario.exe (interface)
+        shell: pwsh
+        run: |
+          $icone = @()
+          if (Test-Path 'assets\icone.ico') { $icone = @('--icon=assets\icone.ico') }
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name "Sistema_Inventario" @icone --add-data "img;img" --add-data "data;data" --add-data "assets;assets" --hidden-import pandas --hidden-import openpyxl --hidden-import xlsxwriter --hidden-import PIL --hidden-import PIL.Image --hidden-import PIL.ImageTk --hidden-import PIL._tkinter_finder --hidden-import ctypes --hidden-import threading lancamento_inventario.py
+          if (-not (Test-Path 'dist\Sistema_Inventario.exe')) { Write-Error 'Sistema_Inventario.exe nao foi gerado.'; exit 1 }
+
+      - name: Compilar Automacao_TOTVS.exe (automacao)
+        shell: pwsh
+        run: |
+          $icone = @()
+          if (Test-Path 'assets\icone.ico') { $icone = @('--icon=assets\icone.ico') }
+          python -m PyInstaller --noconfirm --clean --onefile --console --name "Automacao_TOTVS" @icone --add-data "img;img" --add-data "data;data" --add-data "assets;assets" --add-binary "msedgedriver.exe;." --hidden-import pandas --hidden-import openpyxl --hidden-import pyautogui --hidden-import pygetwindow --hidden-import pyperclip --hidden-import PIL --hidden-import PIL.Image --hidden-import pyscreeze --hidden-import ctypes --hidden-import tkinter --hidden-import tkinter.messagebox --hidden-import selenium --hidden-import selenium.webdriver --hidden-import selenium.webdriver.edge --hidden-import selenium.webdriver.edge.service --hidden-import selenium.webdriver.edge.options --hidden-import selenium.webdriver.common.by --hidden-import selenium.webdriver.support --hidden-import selenium.webdriver.support.ui --hidden-import selenium.webdriver.support.expected_conditions --hidden-import selenium.common.exceptions automacao_totvs.py
+          if (-not (Test-Path 'dist\Automacao_TOTVS.exe')) { Write-Error 'Automacao_TOTVS.exe nao foi gerado.'; exit 1 }
+
+      - name: Conferir os executaveis
+        shell: pwsh
+        run: |
+          Get-ChildItem dist | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}} | Format-Table -AutoSize
+          foreach ($exe in @('dist\Sistema_Inventario.exe', 'dist\Automacao_TOTVS.exe')) {
+            $bytes = [System.IO.File]::ReadAllBytes($exe)[0..1]
+            $assinatura = [System.Text.Encoding]::ASCII.GetString($bytes)
+            Write-Host "$exe -> assinatura '$assinatura'"
+            if ($assinatura -ne 'MZ') { Write-Error "$exe nao parece um executavel Windows." ; exit 1 }
+          }
+      - name: Montar o pacote final
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path 'pacote' | Out-Null
+          Copy-Item 'dist\Sistema_Inventario.exe' 'pacote\'
+          Copy-Item 'dist\Automacao_TOTVS.exe' 'pacote\'
+          Copy-Item 'msedgedriver.exe' 'pacote\'
+          Copy-Item -Recurse -Force 'img' 'pacote\img'
+          Copy-Item -Recurse -Force 'data' 'pacote\data'
+          if (Test-Path 'assets') { Copy-Item -Recurse -Force 'assets' 'pacote\assets' }
+          Copy-Item 'README.md' 'pacote\'
+          Compress-Archive -Path 'pacote\*' -DestinationPath 'Sistema_Inventario_Windows.zip' -Force
+          Get-Item 'Sistema_Inventario_Windows.zip' | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}} | Format-Table -AutoSize
+
+      - name: Disponibilizar para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sistema_Inventario_Windows
+          path: Sistema_Inventario_Windows.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Listar o conteudo do pacote (para conferencia)
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path 'Sistema_Inventario_Windows.zip'))
+          $zip.Entries | Sort-Object FullName | ForEach-Object { '{0,10:N1} KB  {1}' -f ($_.Length/1KB), $_.FullName }
+          $zip.Dispose()
+          Write-Host '--- SHA256 ---'
+          Get-FileHash 'Sistema_Inventario_Windows.zip' -Algorithm SHA256 | Format-List
+
+      - name: Publicar no GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = 'build-${{ github.run_number }}'
+          gh release create $tag 'Sistema_Inventario_Windows.zip' --repo '${{ github.repository }}' --title 'Sistema de Inventario - build ${{ github.run_number }}' --notes 'Compilado automaticamente no Windows a partir do commit ${{ github.sha }}.'
+          Write-Host "Download: https://github.com/${{ github.repository }}/releases/download/$tag/Sistema_Inventario_Windows.zip"
