@@ -10,3 +10,4 @@ pyautogui>=0.9.54
 PyGetWindow>=0.0.9
 pyperclip>=1.8.2
 selenium>=4.15
+opencv-python>=4.8  # Necessário para localizar abrir.png com confidence

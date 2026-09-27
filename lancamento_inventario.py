@@ -276,6 +276,9 @@ class LancamentoInventario:
         self.tab_importar = tk.Frame(self.notebook, bg='#1a1a2e')
         self.notebook.add(self.tab_inventario, text='  📦 Inventário  ')
         self.notebook.add(self.tab_importar, text='  🚗 Importar Pedido HONDA & GM  ')
+        self.tab_acesso = tk.Frame(self.notebook, bg='#1a1a2e')
+        self.notebook.add(self.tab_acesso, text='  🔑 Acesso TOTVS  ')
+        self.criar_aba_acesso(self.tab_acesso)
 
         # FRAME DE LANÇAMENTO
         frame_lanc = tk.LabelFrame(
@@ -499,6 +502,46 @@ class LancamentoInventario:
     # ========================================
     # ABA: IMPORTAR PEDIDO HONDA & GM
     # ========================================
+    def criar_aba_acesso(self, parent):
+        """Credenciais editáveis, comuns aos dois fluxos, mantidas só nesta execução."""
+        self.totvs_login = tk.StringVar(value="deivid")
+        self.totvs_senha = tk.StringVar(value="")
+        self.mostrar_senha_totvs = tk.BooleanVar(value=False)
+        frame = tk.LabelFrame(parent, text=" ACESSO TOTVS PELO EDGE ",
+                              font=('Arial', 12, 'bold'), fg='#00d4ff',
+                              bg='#1a1a2e', padx=24, pady=20)
+        frame.pack(padx=30, pady=30, fill='x')
+        tk.Label(frame, text="http://192.168.2.6:8080/totvs-menu",
+                 fg='#b2bec3', bg='#1a1a2e').grid(row=0, column=0, columnspan=2, pady=(0, 18))
+        for linha, texto in ((1, "Login:"), (2, "Senha:")):
+            tk.Label(frame, text=texto, font=('Arial', 12), fg='white',
+                     bg='#1a1a2e').grid(row=linha, column=0, sticky='w', padx=(0, 16), pady=8)
+        tk.Entry(frame, textvariable=self.totvs_login, width=36,
+                 font=('Arial', 12)).grid(row=1, column=1, sticky='w')
+        campo_senha = tk.Entry(frame, textvariable=self.totvs_senha, show='*',
+                              width=36, font=('Arial', 12))
+        campo_senha.grid(row=2, column=1, sticky='w')
+        tk.Checkbutton(frame, text="Mostrar senha", variable=self.mostrar_senha_totvs,
+                       command=lambda: campo_senha.configure(
+                           show='' if self.mostrar_senha_totvs.get() else '*'),
+                       fg='white', bg='#1a1a2e', selectcolor='#16213e',
+                       activebackground='#1a1a2e', activeforeground='white'
+                       ).grid(row=3, column=1, sticky='w', pady=8)
+        tk.Label(frame, text=(
+            "Cada operador pode informar seu próprio login e senha.\n"
+            "Usados somente se for necessário abrir o DATASUL do começo.\n"
+            "Se já estiver aberto, a sessão atual será mantida.\n\n"
+            "Por segurança, a senha não é salva: preencha a cada execução."
+        ), justify='left', fg='#b2bec3', bg='#1a1a2e', font=('Arial', 10)
+        ).grid(row=4, column=0, columnspan=2, sticky='w', pady=(18, 0))
+
+    def ambiente_automacao(self):
+        """Passa o acesso ao filho sem expô-lo nos argumentos ou alterar os.environ."""
+        ambiente = os.environ.copy()
+        ambiente['AUTOMACAO_TOTVS_LOGIN'] = self.totvs_login.get().strip()
+        ambiente['AUTOMACAO_TOTVS_SENHA'] = self.totvs_senha.get()
+        return ambiente
+
     def criar_aba_importar(self, parent):
         """Monta a aba 'Importar Pedido HONDA & GM' com o botão START."""
         tk.Label(
@@ -511,7 +554,7 @@ class LancamentoInventario:
 
         tk.Label(
             parent,
-            text="Clique em START para iniciar a importação no TOTVS.",
+            text="Configure login e senha na aba Acesso TOTVS e clique em START.",
             font=('Arial', 11),
             fg='#b2bec3',
             bg='#1a1a2e'
@@ -630,6 +673,7 @@ class LancamentoInventario:
                 comando,
                 shell=False,
                 cwd=DIR_BASE,
+                env=self.ambiente_automacao(),
                 creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
             )
 
@@ -919,6 +963,8 @@ class LancamentoInventario:
                     subprocess.Popen(
                         script,
                         shell=False,
+                        cwd=DIR_BASE,
+                        env=self.ambiente_automacao(),
                         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
                     )
                 else:
@@ -932,6 +978,8 @@ class LancamentoInventario:
                     subprocess.Popen(
                         [sys.executable, script],
                         shell=False,
+                        cwd=DIR_BASE,
+                        env=self.ambiente_automacao(),
                         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
                     )
                 else:

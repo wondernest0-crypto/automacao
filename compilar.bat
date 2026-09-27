@@ -104,6 +104,7 @@ python -m PyInstaller --noconfirm --onefile --console ^
     --hidden-import pyperclip ^
     --hidden-import PIL ^
     --hidden-import PIL.Image ^
+    --hidden-import cv2 ^
     --hidden-import pyscreeze ^
     --hidden-import ctypes ^
     --hidden-import selenium ^
