@@ -34,15 +34,16 @@ A interface tem uma segunda aba, **"Importar Pedido HONDA & GM"**, com um botão
 grande e vermelho **START**. Ao clicar, roda o fluxo de importação
 (`automacao_totvs.py importar`):
 
-1. **Minimiza TODAS as janelas** (`WIN+M` + pygetwindow como reforço para as
-   janelas que ignoram o atalho). O `WIN+M` é usado de propósito no lugar do
-   `WIN+D`: o `WIN+D` é um *liga/desliga* e, se a área de trabalho já estivesse
-   visível, ele **restaurava** as janelas em vez de minimizar.
-2. Consulta as janelas e os processos nativos do Windows (sem abrir visualmente
-   o Gerenciador de Tarefas). Aceita **"DATASUL Interactive"** ou
-   **"DATASUL Interative"**, inclusive minimizadas e com sufixos no título.
-   Exige janela visível/responsiva e processo vivo; descarta navegadores pelo
-   título **e pelo executável**, mesmo com uma aba chamada DATASUL Interactive.
+1. Procura primeiro uma janela DATASUL disponível, **antes de minimizar ou
+   abrir o navegador**. Uma sessão já aberta é reutilizada.
+2. Consulta as janelas nativas do Windows (sem abrir visualmente o Gerenciador
+   de Tarefas). Aceita **"DATASUL Interactive"** ou **"DATASUL Interative"**,
+   inclusive minimizadas e com sufixos no título. Exige janela visível/responsiva
+   e processo vivo; descarta navegadores pelo título **e pelo executável**.
+   Se não encontrar janela, registra os processos como diagnóstico: um
+   `prowin32.exe` isolado **não bloqueia** a abertura e não é encerrado.
+   Confere as janelas novamente antes de iniciar outra sessão. Sem janela,
+   minimiza as demais com `WIN+M` (não usa `WIN+D`, que alterna a área de trabalho).
 3. Se não encontrar uma janela disponível, abre o Edge em
    `http://192.168.2.6:8080/totvs-menu`, preenche o acesso informado na interface
    e clica em **Entrar**. Procura `img/abrir.png` (ou `img/abrir_popup.png`,
@@ -59,10 +60,16 @@ grande e vermelho **START**. Ao clicar, roda o fluxo de importação
    nova" que surja depois do atalho), traz ela para a frente e só então digita.
 6. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
    antes de digitar, para não juntar com um código que já estivesse lá).
-7. **5x** (TAB, ENTER).
-8. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\`.
-9. **4x** TAB → seta **↓** → seta **↑** → **ENTER** (importa) e reabre a
-   interface gráfica.
+7. **5x** (TAB, ENTER) e depois **mais um ENTER**, antes de colar.
+8. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
+9. **4x** TAB → seta **↓** → seta **↑**.
+10. Procura **`img/abrir_popup.png`** e clica; em seguida procura
+    **`img/executar.png`** e clica. Aguarda até 30s por cada botão, com confiança
+    fixa de 90%. Arquivo ausente, erro ou botão não encontrado interrompe o
+    fluxo com aviso; não tenta confirmar por ENTER.
+11. Encerra após o clique em Executar e reabre a interface, **sem ENTER final**
+    nem outras confirmações. Esta etapa não verifica o resultado da importação
+    dentro do TOTVS.
 
 Tudo é registrado em `log_automacao.txt` (o `.exe` roda sem console), com um
 passo a passo numerado igual a este.
@@ -76,6 +83,7 @@ Ajustes ficam no topo de `automacao_totvs.py`:
 - `LIMPAR_CAMPO_LANCADOR` — limpar o campo (`CTRL+A` + `DELETE`) antes de digitar.
 - `DIRETORIO_IMPORTACAO_GM` — diretório de origem dos pedidos.
 - `QTD_TAB_ENTER` — quantas vezes repetir (TAB, ENTER).
+- `TEMPO_ESPERA_BOTAO_IMPORTACAO` — espera máxima por cada botão Abrir/Executar (30s).
 - `TEMPO_ESPERA_DATASUL` — tempo máximo (s) esperando a janela do DATASUL (padrão 47).
 - `TEMPO_ESPERA_LANCADOR` — tempo (s) esperando a janela do lançador (padrão 6).
 - `TEMPO_ESPERA_ABRIR` — tempo (s) procurando o botão Abrir após o login (padrão 30).
@@ -93,8 +101,22 @@ senha antes de clicar em START. Os mesmos campos atendem ao inventário e à
 importação HONDA & GM; qualquer um dos três operadores pode informar seu acesso.
 A senha fica mascarada, com a opção **Mostrar senha**.
 
-Por segurança, a senha começa vazia, não fica no código, não é salva em arquivo
-nem registrada no log. Preencha-a novamente quando a interface for reaberta.
+No primeiro uso, informe a senha e clique em **Salvar acesso** ou inicie um
+fluxo com **START** (também salva automaticamente). Ao reabrir a interface,
+**login e senha já vêm preenchidos**, inclusive após a automação. Alterações
+são salvas nesses botões; fechar a janela sem salvar não guarda as edições.
+Use **Esquecer acesso** para apagar o acesso salvo e limpar os campos.
+
+O acesso é criptografado pela **DPAPI do Windows**, vinculado ao usuário Windows
+atual, em `%LOCALAPPDATA%\AutomacaoTOTVS\acesso.dpapi`, fora da pasta do projeto.
+Não há senha em texto puro no código, nos arquivos do projeto ou no log, nem
+fallback para armazenamento sem proteção. Se não for possível salvar, a
+interface avisa e permite usar o acesso somente naquela execução. Se o arquivo
+não puder ser lido, informe e salve o acesso novamente.
+Cada conta Windows mantém seu próprio acesso; pessoas que usam a mesma conta
+Windows compartilham o acesso salvo. A proteção não impede programas executados
+nessa conta de lerem os dados. Não copie esse arquivo para outro computador.
+
 Os dados são passados somente ao processo filho por seu ambiente, não por
 argumentos de linha de comando; o motor os retira do ambiente antes de abrir
 Edge ou reabrir a interface. Isso evita repassá-los aos processos seguintes,
@@ -153,7 +175,13 @@ automacao/
 `+.png`, `saida.png`, `certo.png`, `confirmar.png`, `x.png`, `cancelar.png`,
 `vencimento.png`, `ok.png`, `abrir_popup.png` (alternativa para `abrir.png`).
 
-O botão Abrir usa confiança fixa de 90% (OpenCV), sem reduzir para limiares
+**Pendente de captura:** `img/executar.png` ainda não está incluída no repositório.
+Coloque nesse caminho uma captura recortada do botão Executar do ESPD0001
+antes de usar a sequência nova (e antes de compilar os executáveis).
+`abrir_popup.png` já existe; confira se corresponde ao botão Abrir dessa etapa.
+Não use uma imagem ilustrativa: a busca precisa da aparência real do botão.
+
+Os botões Abrir e Executar usam confiança fixa de 90% (OpenCV), sem reduzir para limiares
 que possam clicar em imagens não relacionadas. Use uma captura compatível com
 a escala de tela/zoom do computador Windows.
 
@@ -233,7 +261,11 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 
 - DATASUL minimizado: deve reutilizar a sessão e confirmar foco antes de CTRL+X.
 - Apenas uma aba Edge chamada DATASUL Interactive: não pode ser confundida com o aplicativo.
-- DATASUL fechado: informar o acesso, verificar URL, Entrar, imagem Abrir e foco.
+- DATASUL fechado, inclusive com `prowin32.exe` restante: deve iniciar pelo Edge.
+- Salvar acesso e fechar/reabrir a interface: login e senha devem estar preenchidos.
+- Conferir os dois ENTERs ao redor da colagem, depois Abrir → Executar, sem ENTER final.
+- Remover/ocultar cada imagem: deve interromper, sem clicar no próximo botão.
+- Testar **Esquecer acesso** e confirmar que a senha não volta ao reabrir.
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
 
