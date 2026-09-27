@@ -114,8 +114,8 @@ LIMPAR_CAMPO_LANCADOR = True
 # Diretório de origem dos pedidos (GM)
 DIRETORIO_IMPORTACAO_GM = "\\\\192.168.0.9\\s\\Sawluz\\swedi\\OUTPUT\\GM\\"
 
-# Quantas vezes repetir a sequência (TAB, ENTER) após abrir o programa
-QTD_TAB_ENTER = 5
+# Quantos TABs consecutivos enviar para chegar ao campo de endereço
+QTD_TAB_ENDERECO = 5
 
 # Espera por cada botão da etapa final (sem reduzir a confiança visual).
 TEMPO_ESPERA_BOTAO_IMPORTACAO = 30
@@ -2585,7 +2585,7 @@ class AutomacaoTOTVS:
            janela ativa (senão o CTRL+X iria para o programa errado);
         4. CTRL+X -> abre a janela do lançador de programas;
         5. Digita ESPD0001 -> ENTER;
-        6. QTD_TAB_ENTER x (TAB, ENTER) -> ENTER -> cola o diretório GM
+        6. QTD_TAB_ENDERECO x TAB -> ENTER -> cola o diretório GM
            -> ENTER -> 4x TAB -> seta ↓ -> seta ↑;
         7. Localiza/clica abrir_popup.png, depois executar.png;
         8. Encerra sem ENTER adicional e reabre a interface gráfica.
@@ -2661,14 +2661,12 @@ class AutomacaoTOTVS:
             return False
 
         # --------------------------------------------------
-        # PASSO 6.1: TAB e ENTER (QTD_TAB_ENTER x)
+        # PASSO 6.1: TABs consecutivos até o campo de endereço (sem ENTER entre eles)
         # --------------------------------------------------
-        self.log(f"⌨️ {QTD_TAB_ENTER}x (TAB, ENTER)...")
-        for i in range(QTD_TAB_ENTER):
+        self.log(f"⌨️ {QTD_TAB_ENDERECO}x TAB (até o campo de endereço)...")
+        for i in range(QTD_TAB_ENDERECO):
             pyautogui.press('tab')
-            self.esperar(0.3)
-            pyautogui.press('enter')
-            self.log(f"   >> Sequência {i + 1}/{QTD_TAB_ENTER}")
+            self.log(f"   >> TAB {i + 1}/{QTD_TAB_ENDERECO} enviado")
             self.esperar(TEMPO_CURTO)
 
         # --------------------------------------------------

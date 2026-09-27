@@ -615,7 +615,7 @@ class LancamentoInventario:
                 "2) Abre/traz o \"DATASUL Interactive\" para a frente\n"
                 "3) CTRL+X  ->  abre a janela do lançador de programas\n"
                 "4) Digita ESPD0001 e tecla ENTER\n"
-                "5) 5x (TAB + ENTER)  ->  ENTER  ->  cola a pasta GM  ->  ENTER\n"
+                "5) 5x TAB  ->  ENTER  ->  cola a pasta GM  ->  ENTER\n"
                 "6) 4x TAB  ->  seta ↓  ->  seta ↑  ->  clica Abrir  ->  clica Executar"
             ),
             font=('Arial', 9),

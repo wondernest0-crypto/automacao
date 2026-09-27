@@ -168,7 +168,7 @@ class TestFluxo(unittest.TestCase):
         eventos.attach_mock(self.bot.clicar_imagem_importacao, 'imagem')
         eventos.attach_mock(self.bot.reabrir_interface, 'reabrir')
         self.assertTrue(self.bot.importar_pedido())
-        self.assertEqual(eventos.mock_calls, [call.tecla('tab'), call.tecla('enter')] * 5 + [
+        self.assertEqual(eventos.mock_calls, [call.tecla('tab')] * 5 + [
             call.tecla('enter'), call.copiar(self.env['DIRETORIO_IMPORTACAO_GM']),
             call.atalho('ctrl', 'v'), call.tecla('enter'),
             *([call.tecla('tab')] * 4), call.tecla('down'), call.tecla('up'),
