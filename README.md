@@ -60,15 +60,17 @@ grande e vermelho **START**. Ao clicar, roda o fluxo de importação
    nova" que surja depois do atalho), traz ela para a frente e só então digita.
 6. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
    antes de digitar, para não juntar com um código que já estivesse lá).
-7. **5x TAB consecutivos**, sem ENTER entre eles, para chegar ao campo de endereço.
-   Depois pressiona **ENTER**, antes de colar.
-8. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
-9. **4x** TAB → seta **↓** → seta **↑**.
-10. Procura **`img/abrir_popup.png`** e clica; em seguida procura
+7. Após o carregamento do programa, envia **1x TAB** → **ENTER** para confirmar
+   a tela inicial do ESPD0001.
+8. Envia **5x TAB consecutivos**, sem ENTER entre eles, para chegar ao campo de
+   endereço. Depois pressiona **ENTER**, antes de colar.
+9. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
+10. Envia **4x** TAB → seta **↓** → seta **↑**.
+11. Procura **`img/abrir_popup.png`** e clica; em seguida procura
     **`img/executar.png`** e clica. Aguarda até 30s por cada botão, com confiança
     fixa de 90%. Arquivo ausente, erro ou botão não encontrado interrompe o
     fluxo com aviso; não tenta confirmar por ENTER.
-11. Encerra após o clique em Executar e reabre a interface, **sem ENTER final**
+12. Encerra após o clique em Executar e reabre a interface, **sem ENTER final**
     nem outras confirmações. Esta etapa não verifica o resultado da importação
     dentro do TOTVS.
 
