@@ -84,6 +84,8 @@ COD_SAIDA = "91110018"
 # ========================================
 TOTVS_URL = "http://192.168.2.6:8080/totvs-menu"
 TEMPO_ESPERA_ABRIR = 30
+# Tempo de inicialização do cliente DATASUL após clicar em abrir_popup.png.
+TEMPO_APOS_CLIQUE_POPUP = 49
 # Driver do Edge - coloque msedgedriver.exe na mesma pasta do script
 EDGE_DRIVER_PATH = os.path.join(DIR_BASE, "msedgedriver.exe")
 
@@ -307,6 +309,50 @@ class AutomacaoTOTVS:
             if hwnd:
                 instantaneo[hwnd] = (j.title or '').strip()
         return instantaneo
+
+    def registrar_estado_janelas(self, motivo):
+        """Registra título, HWND, visibilidade, minimização e janela em foco."""
+        try:
+            foreground = ctypes.windll.user32.GetForegroundWindow() if TEM_CTYPES else None
+            janelas = self.lista_janelas()
+            self.log_debug(f"JANELAS [{motivo}]: total={len(janelas)}; HWND em primeiro plano={foreground}")
+            for janela in janelas:
+                hwnd = getattr(janela, '_hWnd', None)
+                try:
+                    detalhes = f"visível={janela.visible}; minimizada={janela.isMinimized}; x={janela.left}; y={janela.top}; w={janela.width}; h={janela.height}"
+                except Exception as e:
+                    detalhes = f"estado indisponível: {type(e).__name__}: {e!r}"
+                self.log_debug(f"Janela: título={janela.title!r}; hwnd={hwnd}; {detalhes}; em_foco={hwnd == foreground}")
+            if not janelas:
+                self.log_aviso(f"Nenhuma janela com título foi enumerada: {motivo}")
+        except Exception:
+            self.log_erro(f"Falha ao enumerar janelas ({motivo}):\\n{traceback.format_exc()}")
+
+    def registrar_processos_windows(self):
+        """Consulta a lista de processos (equivalente a evidência do Gerenciador)."""
+        if os.name != "nt":
+            self.log_debug("Consulta tasklist ignorada: sistema operacional não é Windows.")
+            return False
+        try:
+            resultado = subprocess.run(
+                ["tasklist", "/FO", "CSV", "/NH"], capture_output=True,
+                text=True, encoding="mbcs", errors="replace", timeout=10,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+            self.log_debug(f"tasklist: returncode={resultado.returncode}; stderr={resultado.stderr.strip()!r}")
+            encontrados = []
+            for linha in resultado.stdout.splitlines():
+                if any(chave in linha.lower() for chave in ("datasul", "totvs", "progress", "prowin", "webclient")):
+                    encontrados.append(linha)
+            self.log_debug(f"Processos relacionados encontrados={len(encontrados)}")
+            for linha in encontrados:
+                self.log_debug(f"Processo Windows: {linha}")
+            if not encontrados:
+                self.log_aviso("tasklist não encontrou processos com nomes contendo datasul/totvs/progress/prowin/webclient.")
+            return bool(encontrados)
+        except Exception as e:
+            self.log_erro(f"Falha consultando processos via tasklist: {type(e).__name__}: {e!r}")
+            return False
 
     # ========================================
     # JANELA DO DATASUL - BUSCA TOLERANTE
@@ -622,23 +668,53 @@ class AutomacaoTOTVS:
         if not imagens:
             self.log_erro("Coloque abrir.png na pasta img (abrir_popup.png também é aceito).")
             return False
-        self.log("   >> Procurando abrir.png / abrir_popup.png após Entrar...")
+        self.log(f"   >> Procurando popup Abrir após Entrar; timeout={TEMPO_ESPERA_ABRIR}s; imagens existentes={[os.path.basename(x) for x in imagens]}; resolução={pyautogui.size()}")
+        for imagem in imagens:
+            try:
+                self.log_debug(f"Imagem popup: {imagem}; tamanho={os.path.getsize(imagem)} bytes")
+            except OSError as e:
+                self.log_aviso(f"Não consegui ler metadados da imagem {imagem}: {e!r}")
         limite = time.monotonic() + TEMPO_ESPERA_ABRIR
+        tentativa = 0
+        ultimo_status = None
         while time.monotonic() < limite:
+            tentativa += 1
             # Instalações com permissão já salva podem abrir sem popup.
-            if self.encontrar_janela_datasul(silencioso=True):
+            janela = self.encontrar_janela_datasul(silencioso=True)
+            if janela:
+                self.log_sucesso(f"DATASUL já detectado durante espera do popup: {janela.title!r}; hwnd={getattr(janela, '_hWnd', None)}")
                 return True
             for imagem in imagens:
                 try:
                     pos = pyautogui.locateCenterOnScreen(imagem, confidence=0.9)
-                except pyautogui.ImageNotFoundException:
+                    status = f"não encontrado (confidence=0.9, tentativa={tentativa})" if not pos else f"encontrado em {pos} (confidence=0.9, tentativa={tentativa})"
+                    if status != ultimo_status:
+                        self.log_debug(f"Busca visual de {os.path.basename(imagem)}: {status}")
+                        ultimo_status = status
+                except Exception as e:
                     pos = None
+                    self.log_aviso(f"Erro ao procurar imagem {os.path.basename(imagem)} na tentativa {tentativa}: {type(e).__name__}: {e!r}")
                 if pos:
+                    self.log_debug(f"Clicando no centro do popup em {pos}; imagem={imagem}")
                     pyautogui.click(pos)
-                    self.log_sucesso(f"Clicou em {os.path.basename(imagem)}!")
+                    self.log_sucesso(f"Clique enviado para {os.path.basename(imagem)} em {pos}")
+                    self.log(f"Aguardando {TEMPO_APOS_CLIQUE_POPUP}s após clicar no popup antes de procurar a janela DATASUL...")
+                    for segundo in range(1, TEMPO_APOS_CLIQUE_POPUP + 1):
+                        time.sleep(1)
+                        if segundo % 10 == 0 or segundo == TEMPO_APOS_CLIQUE_POPUP:
+                            self.log_debug(f"Espera pós-popup: {segundo}/{TEMPO_APOS_CLIQUE_POPUP}s")
+                    self.log_sucesso("Espera pós-popup concluída; agora será feita a busca da janela DATASUL.")
                     return True
+            if tentativa % 10 == 0:
+                self.log_debug(f"Popup ainda não encontrado após {tentativa} tentativas; tempo restante={max(0, limite-time.monotonic()):.1f}s")
             time.sleep(0.5)
-        self.log_erro("Botão Abrir não encontrado. Confira o login, a senha e a imagem do popup.")
+        self.log_erro(f"Timeout procurando popup Abrir: {TEMPO_ESPERA_ABRIR}s, {tentativa} tentativas, imagens={imagens!r}, última busca={ultimo_status!r}")
+        self.registrar_estado_janelas("timeout esperando popup Abrir")
+        try:
+            if getattr(self, '_driver_login', None):
+                self.log_debug(f"Estado final Edge/Selenium: URL={self._driver_login.current_url!r}; título={self._driver_login.title!r}; handles={self._driver_login.window_handles!r}")
+        except Exception as e:
+            self.log_aviso(f"Não consegui coletar estado final do Edge: {type(e).__name__}: {e!r}")
         return False
 
     # ========================================
@@ -2491,21 +2567,26 @@ class AutomacaoTOTVS:
         diretorio = DIRETORIO_IMPORTACAO_GM
 
         # --------------------------------------------------
-        # PASSO 1: minimizar todas as janelas
+        # PASSO 1: procurar DATASUL ANTES de minimizar/abrir o navegador.
+        # A busca usa as janelas nativas do Windows; em caso negativo, registra
+        # também a lista de processos para revelar clientes em outra sessão.
         # --------------------------------------------------
-        self.minimizar_todas_janelas()
-
-        # --------------------------------------------------
-        # PASSO 2: procurar a janela do DATASUL (tolerante a variações)
-        #          ou abrir o TOTVS pelo navegador
-        # --------------------------------------------------
-        self.log("🔍 Procurando janela do DATASUL Interactive...")
+        self.log("🔍 Procurando primeiro uma janela DATASUL Interactive já aberta...")
+        self.registrar_estado_janelas("antes de qualquer minimização ou abertura do Edge")
         janela = self.encontrar_janela_datasul()
 
         if janela:
-            self.log_sucesso("Janela do DATASUL já estava aberta!")
+            self.log_sucesso("Janela do DATASUL já estava aberta; não vou iniciar outra sessão.")
         else:
-            self.log_aviso("⚠️ Janela do DATASUL não encontrada!")
+            self.log_aviso("DATASUL não localizado nas janelas. Consultando processos do Windows antes de iniciar do zero.")
+            processo_relacionado = self.registrar_processos_windows()
+            if processo_relacionado:
+                self.log_erro("Há processo relacionado a TOTVS/Progress ativo, mas nenhuma janela DATASUL reconhecida. Não vou abrir outra sessão automaticamente; verifique o Gerenciador de Tarefas e envie este log.")
+                self.mostrar_erro_visivel("DATASUL em execução, janela não localizada", f"Foi detectado processo relacionado ao TOTVS/Progress, mas não a janela DATASUL Interactive. Para evitar abrir sessão duplicada, a automação foi interrompida. Consulte o Gerenciador de Tarefas.\\n\\nLog: {ARQUIVO_LOG}")
+                self.reabrir_interface()
+                return False
+            self.log("🔽 Minimizando janelas somente após confirmar que não achou o DATASUL...")
+            self.minimizar_todas_janelas()
             janela = self._abrir_datasul_com_navegador()
             if not janela:
                 self.reabrir_interface()
