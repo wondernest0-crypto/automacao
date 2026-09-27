@@ -9,9 +9,10 @@ from pathlib import Path
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 
 import janelas_windows
+from credenciais_totvs import ErroCredenciais
 
 RAIZ = Path(__file__).resolve().parents[1]
 
@@ -55,6 +56,9 @@ class TestFluxo(unittest.TestCase):
         self.bot.totvs_login = 'operador_teste'
         self.bot.totvs_senha = 'senha_ficticia'
         self.bot._driver_login = None
+        self.bot.registrar_estado_janelas = Mock()
+        self.bot.registrar_processos_windows = Mock(return_value=False)
+        self.bot.clicar_imagem_importacao = Mock(return_value=True)
         self.janela = SimpleNamespace(title='DATASUL Interactive - CE0220', _hWnd=123, isMinimized=True)
 
     def test_motor_retira_credenciais_do_ambiente(self):
@@ -122,7 +126,8 @@ class TestFluxo(unittest.TestCase):
         self.bot.abrir_programa_no_totvs = Mock(return_value=True)
         self.assertTrue(self.bot.importar_pedido())
         self.bot._abrir_datasul_com_navegador.assert_not_called()
-        self.bot.minimizar_todas_janelas.assert_called_once()
+        self.bot.minimizar_todas_janelas.assert_not_called()
+        self.bot.registrar_processos_windows.assert_not_called()
         self.bot.abrir_programa_no_totvs.assert_called_once_with('ESPD0001')
 
     def test_sem_janela_abre_edge_e_continua(self):
@@ -132,6 +137,111 @@ class TestFluxo(unittest.TestCase):
         self.bot.abrir_programa_no_totvs = Mock(return_value=True)
         self.assertTrue(self.bot.importar_pedido())
         self.bot._abrir_datasul_com_navegador.assert_called_once()
+        self.bot.minimizar_todas_janelas.assert_called_once()
+
+    def test_processo_progress_sem_janela_nao_bloqueia_inicio(self):
+        self.bot.registrar_processos_windows.return_value = True
+        self.test_sem_janela_abre_edge_e_continua()
+        self.bot.registrar_processos_windows.assert_called_once()
+        self.bot.mostrar_erro_visivel.assert_not_called()
+
+    def test_janela_aparece_durante_consulta_nao_duplica_sessao(self):
+        self.bot.registrar_processos_windows.return_value = True
+        self.bot.encontrar_janela_datasul = Mock(side_effect=[None, self.janela])
+        self.bot._abrir_datasul_com_navegador = Mock()
+        self.bot.garantir_foco_datasul = Mock(return_value=self.janela)
+        self.bot.abrir_programa_no_totvs = Mock(return_value=True)
+        self.assertTrue(self.bot.importar_pedido())
+        self.bot._abrir_datasul_com_navegador.assert_not_called()
+
+    def preparar_importacao_aberta(self):
+        self.bot.encontrar_janela_datasul = Mock(return_value=self.janela)
+        self.bot.garantir_foco_datasul = Mock(return_value=self.janela)
+        self.bot.abrir_programa_no_totvs = Mock(return_value=True)
+
+    def test_sequencia_exata_ate_executar_sem_enter_final(self):
+        self.preparar_importacao_aberta()
+        eventos = Mock()
+        eventos.attach_mock(self.gui.press, 'tecla')
+        eventos.attach_mock(self.gui.hotkey, 'atalho')
+        eventos.attach_mock(self.env['pyperclip'].copy, 'copiar')
+        eventos.attach_mock(self.bot.clicar_imagem_importacao, 'imagem')
+        eventos.attach_mock(self.bot.reabrir_interface, 'reabrir')
+        self.assertTrue(self.bot.importar_pedido())
+        self.assertEqual(eventos.mock_calls, [call.tecla('tab'), call.tecla('enter')] * 5 + [
+            call.tecla('enter'), call.copiar(self.env['DIRETORIO_IMPORTACAO_GM']),
+            call.atalho('ctrl', 'v'), call.tecla('enter'),
+            *([call.tecla('tab')] * 4), call.tecla('down'), call.tecla('up'),
+            call.imagem('abrir_popup.png'), call.imagem('executar.png'), call.reabrir()])
+
+    def test_falha_abrir_nao_clica_executar_nem_envia_enter_final(self):
+        self.preparar_importacao_aberta()
+        self.bot.clicar_imagem_importacao.return_value = False
+        self.assertFalse(self.bot.importar_pedido())
+        self.bot.clicar_imagem_importacao.assert_called_once_with('abrir_popup.png')
+        self.assertEqual(self.gui.press.call_args, call('up'))
+        self.bot.mostrar_erro_visivel.assert_called_once()
+        self.bot.reabrir_interface.assert_called_once()
+        self.assertNotIn('encerrada após o clique', str(self.bot.log_sucesso.call_args_list))
+
+    def test_falha_executar_interrompe_sem_sucesso(self):
+        self.preparar_importacao_aberta()
+        self.bot.clicar_imagem_importacao.side_effect = [True, False]
+        self.assertFalse(self.bot.importar_pedido())
+        self.assertEqual(self.bot.clicar_imagem_importacao.call_args_list,
+                         [call('abrir_popup.png'), call('executar.png')])
+        self.assertEqual(self.gui.press.call_args, call('up'))
+        self.bot.mostrar_erro_visivel.assert_called_once()
+        self.bot.reabrir_interface.assert_called_once()
+        self.assertNotIn('encerrada após o clique', str(self.bot.log_sucesso.call_args_list))
+
+    def test_falha_clipboard_nao_cola_conteudo_antigo(self):
+        self.preparar_importacao_aberta()
+        self.env['pyperclip'].copy.side_effect = RuntimeError()
+        self.assertFalse(self.bot.importar_pedido())
+        self.gui.hotkey.assert_not_called()
+        self.bot.clicar_imagem_importacao.assert_not_called()
+        self.bot.reabrir_interface.assert_called_once()
+
+    def test_botao_importacao_espera_e_clica_com_confianca_fixa(self):
+        del self.bot.clicar_imagem_importacao  # Exercita a implementação real.
+        self.gui.locateCenterOnScreen.side_effect = [
+            self.gui.ImageNotFoundException(), None, (100, 200)]
+        with patch('os.path.isfile', return_value=True):
+            self.assertTrue(self.bot.clicar_imagem_importacao('executar.png'))
+        self.assertEqual(self.gui.locateCenterOnScreen.call_args_list,
+                         [call(str(RAIZ / 'img' / 'executar.png'), confidence=0.9)] * 3)
+        self.gui.click.assert_called_once_with((100, 200))
+        self.gui.press.assert_not_called()
+
+    def test_botao_importacao_arquivo_ausente_nao_clica(self):
+        del self.bot.clicar_imagem_importacao
+        with patch('os.path.isfile', return_value=False):
+            self.assertFalse(self.bot.clicar_imagem_importacao('executar.png'))
+        self.gui.locateCenterOnScreen.assert_not_called()
+        self.gui.click.assert_not_called()
+        self.gui.press.assert_not_called()
+
+    def test_botao_importacao_timeout_nao_clica(self):
+        del self.bot.clicar_imagem_importacao
+        self.gui.locateCenterOnScreen.return_value = None
+        with patch('os.path.isfile', return_value=True):
+            self.assertFalse(self.bot.clicar_imagem_importacao('abrir_popup.png'))
+        self.assertTrue(self.gui.locateCenterOnScreen.called)
+        self.gui.click.assert_not_called()
+        self.gui.press.assert_not_called()
+
+    def test_botao_importacao_erro_visual_ou_clique_interrompe(self):
+        del self.bot.clicar_imagem_importacao
+        with patch('os.path.isfile', return_value=True):
+            self.gui.locateCenterOnScreen.side_effect = RuntimeError()
+            self.assertFalse(self.bot.clicar_imagem_importacao('executar.png'))
+            self.gui.click.assert_not_called()
+            self.gui.locateCenterOnScreen.side_effect = None
+            self.gui.locateCenterOnScreen.return_value = (100, 200)
+            self.gui.click.side_effect = RuntimeError()
+            self.assertFalse(self.bot.clicar_imagem_importacao('executar.png'))
+        self.gui.press.assert_not_called()
 
     def test_falha_abertura_nao_continua(self):
         self.bot.encontrar_janela_datasul = Mock(return_value=None)
@@ -270,7 +380,9 @@ class TestInterface(unittest.TestCase):
     def setUp(self):
         self.subprocess = Mock(DETACHED_PROCESS=8, CREATE_NEW_PROCESS_GROUP=512, CREATE_NO_WINDOW=134217728)
         self.env = dict(os=os, sys=SimpleNamespace(executable=sys.executable, frozen=False),
-                        subprocess=self.subprocess, DIR_BASE=str(RAIZ), messagebox=Mock())
+                        subprocess=self.subprocess, DIR_BASE=str(RAIZ), messagebox=Mock(),
+                        tk=Mock(), carregar_credenciais=Mock(return_value=('operador salvo', 'senha salva')),
+                        salvar_credenciais=Mock(), esquecer_credenciais=Mock(), ErroCredenciais=ErroCredenciais)
         cls = carregar_classe('lancamento_inventario.py', 'LancamentoInventario', self.env)
         self.ui = cls.__new__(cls)
         self.ui.totvs_login = Mock(get=Mock(return_value=' operador '))
@@ -278,6 +390,41 @@ class TestInterface(unittest.TestCase):
         self.ui.root = Mock()
         self.ui.salvar_relatorio = Mock()
         self.ui.lancamentos = [{'Item': 'teste', 'Ajustado': 'NÃO'}]
+
+    def test_interface_reabre_com_acesso_salvo_e_senha_mascarada(self):
+        self.ui.criar_aba_acesso(Mock())
+        self.env['carregar_credenciais'].assert_called_once_with()
+        self.env['tk'].StringVar.assert_any_call(value='operador salvo')
+        self.env['tk'].StringVar.assert_any_call(value='senha salva')
+        self.assertEqual(self.env['tk'].Entry.call_args.kwargs['show'], '*')
+
+    def test_falha_carregamento_permite_informar_novo_acesso(self):
+        self.env['carregar_credenciais'].side_effect = ErroCredenciais('Falha ao carregar')
+        self.ui.criar_aba_acesso(Mock())
+        self.env['tk'].StringVar.assert_any_call(value='')
+        self.env['messagebox'].showwarning.assert_called_once()
+
+    def test_botao_salvar(self):
+        self.assertTrue(self.ui.salvar_acesso_totvs())
+        self.env['salvar_credenciais'].assert_called_once_with(' operador ', ' senha ficticia ')
+        self.env['messagebox'].showinfo.assert_called_once()
+
+    def test_start_salva_sem_dialogo_de_sucesso(self):
+        self.ui.ambiente_automacao()
+        self.env['salvar_credenciais'].assert_called_once_with(' operador ', ' senha ficticia ')
+        self.env['messagebox'].showinfo.assert_not_called()
+
+    def test_falha_ao_salvar_avisa_mas_permite_uso_nesta_execucao(self):
+        self.env['salvar_credenciais'].side_effect = ErroCredenciais('Falha ao salvar')
+        ambiente = self.ui.ambiente_automacao()
+        self.assertEqual(ambiente['AUTOMACAO_TOTVS_SENHA'], ' senha ficticia ')
+        self.env['messagebox'].showwarning.assert_called_once()
+
+    def test_esquecer_apaga_arquivo_e_campos(self):
+        self.ui.esquecer_acesso_totvs()
+        self.env['esquecer_credenciais'].assert_called_once_with()
+        self.ui.totvs_login.set.assert_called_once_with('')
+        self.ui.totvs_senha.set.assert_called_once_with('')
 
     def test_ambiente_nao_muda_processo_pai(self):
         antes = os.environ.copy()

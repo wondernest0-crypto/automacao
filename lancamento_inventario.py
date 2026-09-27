@@ -11,6 +11,8 @@ import os
 import subprocess
 import sys
 import threading
+from credenciais_totvs import (carregar_credenciais, salvar_credenciais,
+                               esquecer_credenciais, ErroCredenciais)
 
 # ========================================
 # CORRIGIR ÍCONE NA BARRA DE TAREFAS (WINDOWS)
@@ -503,9 +505,14 @@ class LancamentoInventario:
     # ABA: IMPORTAR PEDIDO HONDA & GM
     # ========================================
     def criar_aba_acesso(self, parent):
-        """Credenciais editáveis, comuns aos dois fluxos, mantidas só nesta execução."""
-        self.totvs_login = tk.StringVar(value="deivid")
-        self.totvs_senha = tk.StringVar(value="")
+        """Credenciais comuns aos dois fluxos, protegidas pelo usuário Windows."""
+        try:
+            login, senha = carregar_credenciais()
+        except ErroCredenciais as erro:
+            login, senha = 'deivid', ''
+            messagebox.showwarning("Acesso TOTVS", str(erro), parent=self.root)
+        self.totvs_login = tk.StringVar(value=login)
+        self.totvs_senha = tk.StringVar(value=senha)
         self.mostrar_senha_totvs = tk.BooleanVar(value=False)
         frame = tk.LabelFrame(parent, text=" ACESSO TOTVS PELO EDGE ",
                               font=('Arial', 12, 'bold'), fg='#00d4ff',
@@ -531,12 +538,39 @@ class LancamentoInventario:
             "Cada operador pode informar seu próprio login e senha.\n"
             "Usados somente se for necessário abrir o DATASUL do começo.\n"
             "Se já estiver aberto, a sessão atual será mantida.\n\n"
-            "Por segurança, a senha não é salva: preencha a cada execução."
+            "Login e senha são salvos ao clicar em START ou em Salvar acesso.\n"
+            "Protegidos pelo Windows para este usuário do computador."
         ), justify='left', fg='#b2bec3', bg='#1a1a2e', font=('Arial', 10)
         ).grid(row=4, column=0, columnspan=2, sticky='w', pady=(18, 0))
 
+        botoes = tk.Frame(frame, bg='#1a1a2e')
+        botoes.grid(row=5, column=0, columnspan=2, sticky='w', pady=(18, 0))
+        tk.Button(botoes, text="Salvar acesso", command=self.salvar_acesso_totvs).pack(side='left', padx=(0, 12))
+        tk.Button(botoes, text="Esquecer acesso", command=self.esquecer_acesso_totvs).pack(side='left')
+
+    def salvar_acesso_totvs(self, avisar=True):
+        try:
+            salvar_credenciais(self.totvs_login.get(), self.totvs_senha.get())
+        except ErroCredenciais as erro:
+            messagebox.showwarning("Acesso TOTVS", str(erro), parent=self.root)
+            return False
+        if avisar:
+            messagebox.showinfo("Acesso TOTVS", "Login e senha salvos para este usuário Windows.", parent=self.root)
+        return True
+
+    def esquecer_acesso_totvs(self):
+        try:
+            esquecer_credenciais()
+        except ErroCredenciais as erro:
+            messagebox.showwarning("Acesso TOTVS", str(erro), parent=self.root)
+            return
+        self.totvs_login.set('')
+        self.totvs_senha.set('')
+        messagebox.showinfo("Acesso TOTVS", "Acesso salvo removido.", parent=self.root)
+
     def ambiente_automacao(self):
         """Passa o acesso ao filho sem expô-lo nos argumentos ou alterar os.environ."""
+        self.salvar_acesso_totvs(avisar=False)
         ambiente = os.environ.copy()
         ambiente['AUTOMACAO_TOTVS_LOGIN'] = self.totvs_login.get().strip()
         ambiente['AUTOMACAO_TOTVS_SENHA'] = self.totvs_senha.get()
@@ -577,12 +611,12 @@ class LancamentoInventario:
         tk.Label(
             frame_passos,
             text=(
-                "1) Minimiza todas as janelas\n"
+                "1) Procura o DATASUL; se ausente, inicia pelo Edge\n"
                 "2) Abre/traz o \"DATASUL Interactive\" para a frente\n"
                 "3) CTRL+X  ->  abre a janela do lançador de programas\n"
                 "4) Digita ESPD0001 e tecla ENTER\n"
-                "5) 5x (TAB + ENTER)  ->  cola a pasta GM  ->  4x TAB\n"
-                "        ->  seta ↓  ->  seta ↑  ->  ENTER (importa)"
+                "5) 5x (TAB + ENTER)  ->  ENTER  ->  cola a pasta GM  ->  ENTER\n"
+                "6) 4x TAB  ->  seta ↓  ->  seta ↑  ->  clica Abrir  ->  clica Executar"
             ),
             font=('Arial', 9),
             fg='#dfe6e9',

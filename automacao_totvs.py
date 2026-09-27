@@ -117,6 +117,9 @@ DIRETORIO_IMPORTACAO_GM = "\\\\192.168.0.9\\s\\Sawluz\\swedi\\OUTPUT\\GM\\"
 # Quantas vezes repetir a sequência (TAB, ENTER) após abrir o programa
 QTD_TAB_ENTER = 5
 
+# Espera por cada botão da etapa final (sem reduzir a confiança visual).
+TEMPO_ESPERA_BOTAO_IMPORTACAO = 30
+
 # Tempo máximo (segundos) aguardando a janela "DATASUL Interactive" aparecer
 TEMPO_ESPERA_DATASUL = 47
 
@@ -2541,21 +2544,52 @@ class AutomacaoTOTVS:
             self.log_aviso(f"Não vi '{programa}' no título de nenhuma janela; seguindo o fluxo.")
         return True
 
+    def clicar_imagem_importacao(self, nome):
+        """Espera e clica uma vez no botão, sem ENTER ou confiança reduzida."""
+        caminho = os.path.join(DIR_IMG, nome)
+        if not os.path.isfile(caminho):
+            self.log_erro(f"Imagem obrigatória ausente: {caminho}")
+            return False
+        self.log(f"🖼️ Procurando {nome} (até {TEMPO_ESPERA_BOTAO_IMPORTACAO}s, confiança 90%)...")
+        limite = time.monotonic() + TEMPO_ESPERA_BOTAO_IMPORTACAO
+        while time.monotonic() < limite:
+            try:
+                pos = pyautogui.locateCenterOnScreen(caminho, confidence=0.9)
+            except pyautogui.ImageNotFoundException:
+                pos = None
+            except Exception as erro:
+                self.log_erro(f"Falha ao procurar {nome}: {type(erro).__name__}")
+                return False
+            if pos:
+                try:
+                    pyautogui.click(pos)
+                except Exception as erro:
+                    self.log_erro(f"Falha ao clicar em {nome}: {type(erro).__name__}")
+                    return False
+                self.log_sucesso(f"Clique enviado para {nome} em {pos}")
+                self.esperar(TEMPO_CURTO)
+                return True
+            time.sleep(0.5)
+        self.log_erro(f"Imagem {nome} não encontrada na tela em {TEMPO_ESPERA_BOTAO_IMPORTACAO}s.")
+        return False
+
     def importar_pedido(self):
         """Fluxo da aba "Importar Pedido HONDA & GM" (botão START vermelho).
 
         Ordem do processo:
 
-        1. Minimiza TODAS as janelas (WIN+M + pygetwindow);
-        2. Localiza a janela do "DATASUL Interactive" - se não existir, abre
-           o TOTVS pelo navegador e aguarda até TEMPO_ESPERA_DATASUL;
+        1. Procura uma janela disponível do "DATASUL Interactive";
+        2. Se não existir, minimiza as janelas, abre o TOTVS pelo navegador
+           e aguarda até TEMPO_ESPERA_DATASUL;
         3. Traz a janela do DATASUL para a FRENTE e confirma que ela é a
            janela ativa (senão o CTRL+X iria para o programa errado);
         4. CTRL+X -> abre a janela do lançador de programas;
         5. Digita ESPD0001 -> ENTER;
-        6. Segue o fluxo: QTD_TAB_ENTER x (TAB, ENTER) -> cola o diretório GM
-           -> 4x TAB -> seta ↓ -> seta ↑ -> ENTER;
-        7. Reabre a interface gráfica.
+        6. QTD_TAB_ENTER x (TAB, ENTER) -> ENTER -> cola o diretório GM
+           -> ENTER -> 4x TAB -> seta ↓ -> seta ↑;
+        7. Localiza/clica abrir_popup.png, depois executar.png;
+        8. Encerra sem ENTER adicional e reabre a interface gráfica.
+           O resultado da importação no TOTVS não é verificado nesta etapa.
 
         Retorna True se o fluxo rodou até o fim; False se parou em algum erro
         (a interface é reaberta nos dois casos).
@@ -2581,16 +2615,19 @@ class AutomacaoTOTVS:
             self.log_aviso("DATASUL não localizado nas janelas. Consultando processos do Windows antes de iniciar do zero.")
             processo_relacionado = self.registrar_processos_windows()
             if processo_relacionado:
-                self.log_erro("Há processo relacionado a TOTVS/Progress ativo, mas nenhuma janela DATASUL reconhecida. Não vou abrir outra sessão automaticamente; verifique o Gerenciador de Tarefas e envie este log.")
-                self.mostrar_erro_visivel("DATASUL em execução, janela não localizada", f"Foi detectado processo relacionado ao TOTVS/Progress, mas não a janela DATASUL Interactive. Para evitar abrir sessão duplicada, a automação foi interrompida. Consulte o Gerenciador de Tarefas.\\n\\nLog: {ARQUIVO_LOG}")
-                self.reabrir_interface()
-                return False
-            self.log("🔽 Minimizando janelas somente após confirmar que não achou o DATASUL...")
-            self.minimizar_todas_janelas()
-            janela = self._abrir_datasul_com_navegador()
-            if not janela:
-                self.reabrir_interface()
-                return False
+                self.log_aviso("Há processo TOTVS/Progress ativo, mas nenhuma janela DATASUL disponível. O processo isolado não impede iniciar pelo navegador; nenhum processo será encerrado.")
+            # Uma janela pode ter aparecido durante a consulta de processos.
+            janela = self.encontrar_janela_datasul(silencioso=True)
+            if janela:
+                self.log_sucesso("Janela DATASUL apareceu durante a consulta; reutilizando a sessão.")
+            else:
+                self.log("Nenhuma janela DATASUL disponível; iniciando o fluxo completo pelo Edge.")
+                self.log("🔽 Minimizando janelas somente após confirmar que não achou o DATASUL...")
+                self.minimizar_todas_janelas()
+                janela = self._abrir_datasul_com_navegador()
+                if not janela:
+                    self.reabrir_interface()
+                    return False
 
         # --------------------------------------------------
         # PASSO 3: trazer para frente e CONFIRMAR o foco
@@ -2635,15 +2672,24 @@ class AutomacaoTOTVS:
             self.esperar(TEMPO_CURTO)
 
         # --------------------------------------------------
-        # PASSO 6.2: colar o diretório
+        # PASSO 6.2: ENTER, colar o diretório e confirmar com ENTER
         # --------------------------------------------------
+        self.log("⌨️ ENTER (antes de colar o diretório)...")
+        pyautogui.press('enter')
+        self.esperar(TEMPO_CURTO)
         self.log(f"📋 Colando diretório: {diretorio}")
         try:
             pyperclip.copy(diretorio)
         except Exception as e:
-            self.log_aviso(f"Falha ao copiar diretório: {e}")
+            self.log_erro(f"Falha ao copiar diretório: {type(e).__name__}; importação interrompida.")
+            self.mostrar_erro_visivel("Importar Pedido - ERRO", "Não foi possível copiar o diretório GM. Nenhum conteúdo será colado.")
+            self.reabrir_interface()
+            return False
         self.esperar(0.3)
         pyautogui.hotkey('ctrl', 'v')
+        self.esperar(TEMPO_CURTO)
+        self.log("⌨️ ENTER (após colar o diretório)...")
+        pyautogui.press('enter')
         self.esperar(TEMPO_CURTO)
 
         # --------------------------------------------------
@@ -2665,13 +2711,21 @@ class AutomacaoTOTVS:
         self.esperar(TEMPO_CURTO)
 
         # --------------------------------------------------
-        # PASSO 6.5: ENTER final
+        # PASSO 6.5: Abrir e Executar por imagem, nesta ordem (sem ENTER final)
         # --------------------------------------------------
-        self.log("⌨️ ENTER (confirmar)...")
-        pyautogui.press('enter')
-        self.esperar(TEMPO_MEDIO)
+        for nome in ('abrir_popup.png', 'executar.png'):
+            if not self.clicar_imagem_importacao(nome):
+                self.mostrar_erro_visivel(
+                    "Importar Pedido - ERRO",
+                    f"Não foi possível localizar/clicar em {nome}.\n"
+                    "Confira o arquivo na pasta img e se o botão está visível na tela.\n"
+                    "A sequência foi interrompida, sem confirmação por ENTER.\n"
+                    f"Log: {ARQUIVO_LOG}"
+                )
+                self.reabrir_interface()
+                return False
 
-        self.log_sucesso("✅ Fluxo de importação de pedido concluído!")
+        self.log_sucesso("Sequência de importação encerrada após o clique em Executar; resultado no TOTVS não verificado.")
         self.reabrir_interface()
         return True
 
