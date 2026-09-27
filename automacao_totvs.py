@@ -2585,7 +2585,8 @@ class AutomacaoTOTVS:
            janela ativa (senão o CTRL+X iria para o programa errado);
         4. CTRL+X -> abre a janela do lançador de programas;
         5. Digita ESPD0001 -> ENTER;
-        6. QTD_TAB_ENDERECO x TAB -> ENTER -> cola o diretório GM
+        6. 1x TAB -> ENTER para confirmar a tela inicial; depois
+           QTD_TAB_ENDERECO x TAB -> ENTER -> cola o diretório GM
            -> ENTER -> 4x TAB -> seta ↓ -> seta ↑;
         7. Localiza/clica abrir_popup.png, depois executar.png;
         8. Encerra sem ENTER adicional e reabre a interface gráfica.
@@ -2661,7 +2662,17 @@ class AutomacaoTOTVS:
             return False
 
         # --------------------------------------------------
-        # PASSO 6.1: TABs consecutivos até o campo de endereço (sem ENTER entre eles)
+        # PASSO 6.1: confirmar a tela inicial do ESPD0001 com 1x TAB + ENTER
+        # --------------------------------------------------
+        self.log("⌨️ 1x TAB (confirmar a tela inicial do ESPD0001)...")
+        pyautogui.press('tab')
+        self.esperar(TEMPO_CURTO)
+        self.log("⌨️ ENTER (após 1x TAB)...")
+        pyautogui.press('enter')
+        self.esperar(TEMPO_CURTO)
+
+        # --------------------------------------------------
+        # PASSO 6.2: TABs consecutivos até o campo de endereço (sem ENTER entre eles)
         # --------------------------------------------------
         self.log(f"⌨️ {QTD_TAB_ENDERECO}x TAB (até o campo de endereço)...")
         for i in range(QTD_TAB_ENDERECO):
