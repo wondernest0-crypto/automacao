@@ -60,7 +60,8 @@ grande e vermelho **START**. Ao clicar, roda o fluxo de importação
    nova" que surja depois do atalho), traz ela para a frente e só então digita.
 6. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
    antes de digitar, para não juntar com um código que já estivesse lá).
-7. **5x** (TAB, ENTER) e depois **mais um ENTER**, antes de colar.
+7. **5x TAB consecutivos**, sem ENTER entre eles, para chegar ao campo de endereço.
+   Depois pressiona **ENTER**, antes de colar.
 8. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
 9. **4x** TAB → seta **↓** → seta **↑**.
 10. Procura **`img/abrir_popup.png`** e clica; em seguida procura
