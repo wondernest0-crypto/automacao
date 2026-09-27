@@ -38,17 +38,22 @@ grande e vermelho **START**. Ao clicar, roda o fluxo de importação
    janelas que ignoram o atalho). O `WIN+M` é usado de propósito no lugar do
    `WIN+D`: o `WIN+D` é um *liga/desliga* e, se a área de trabalho já estivesse
    visível, ele **restaurava** as janelas em vez de minimizar.
-2. Procura a janela do TOTVS (**"DATASUL Interactive"**, **"DATASUL Interative"**
-   ou só **"DATASUL"** — a busca tenta as variações, ignora as janelas de
-   navegador e, se não achar nenhuma, grava no log a lista de janelas abertas
-   para você conferir o título real).
-3. Se **não** achar, abre o TOTVS do zero (login → senha → Entrar → popup) e
-   aguarda até ~47s a janela aparecer.
-4. Traz o **"DATASUL Interactive" para a frente** e **confirma que ele é a
-   janela ativa** (a que recebe as teclas): sem essa confirmação o `CTRL+X`
-   iria para outro programa. Como reforço são usados
-   `SetForegroundWindow`/`BringWindowToTop` e, se ainda assim o foco não for
-   confirmado, o *truque do TAB* (o Windows passa a considerar a janela ativa).
+2. Consulta as janelas e os processos nativos do Windows (sem abrir visualmente
+   o Gerenciador de Tarefas). Aceita **"DATASUL Interactive"** ou
+   **"DATASUL Interative"**, inclusive minimizadas e com sufixos no título.
+   Exige janela visível/responsiva e processo vivo; descarta navegadores pelo
+   título **e pelo executável**, mesmo com uma aba chamada DATASUL Interactive.
+3. Se não encontrar uma janela disponível, abre o Edge em
+   `http://192.168.2.6:8080/totvs-menu`, preenche o acesso informado na interface
+   e clica em **Entrar**. Procura `img/abrir.png` (ou `img/abrir_popup.png`,
+   nome existente nesta versão) por até 30s e clica no botão encontrado.
+   Se o DATASUL abrir sem popup, segue normalmente. Sem imagem correspondente,
+   interrompe com aviso em vez de enviar atalhos às cegas.
+   Depois do clique, aguarda até 47s pela janela/processo DATASUL.
+4. Restaura e ativa a janela, usando também `SetForegroundWindow`,
+   `BringWindowToTop` e clique na barra de título. **Exige confirmação real do
+   foco antes do CTRL+X**; se a consulta falhar ou outra janela estiver ativa,
+   interrompe. Não envia TAB para tentar ativar uma janela desconhecida.
 5. **CTRL+X** → abre a **janela do lançador de programas**. A automação espera
    essa janela aparecer (pelos títulos conhecidos **ou** por "qualquer janela
    nova" que surja depois do atalho), traz ela para a frente e só então digita.
@@ -73,11 +78,32 @@ Ajustes ficam no topo de `automacao_totvs.py`:
 - `QTD_TAB_ENTER` — quantas vezes repetir (TAB, ENTER).
 - `TEMPO_ESPERA_DATASUL` — tempo máximo (s) esperando a janela do DATASUL (padrão 47).
 - `TEMPO_ESPERA_LANCADOR` — tempo (s) esperando a janela do lançador (padrão 6).
-- `TEMPO_ESPERA_FOCO` — tempo (s) esperando o DATASUL virar a janela ativa (padrão 2.5).
+- `TEMPO_ESPERA_ABRIR` — tempo (s) procurando o botão Abrir após o login (padrão 30).
 - `TEMPO_ESPERA_PROGRAMA` — tempo (s) esperando o ESPD0001 carregar.
 - `TITULOS_LANCADOR` — títulos do lançador de programas (opcional: a janela nova
   já é detectada mesmo que o título mude).
-- `NAVEGADORES` — usados apenas para não confundir o navegador com o DATASUL.
+- `NAVEGADORES` — títulos de navegadores descartados na busca pelo DATASUL.
+
+---
+
+## 🔑 Login e senha por operador
+
+Na aba **Acesso TOTVS**, edite o login (inicialmente `deivid`) e preencha a
+senha antes de clicar em START. Os mesmos campos atendem ao inventário e à
+importação HONDA & GM; qualquer um dos três operadores pode informar seu acesso.
+A senha fica mascarada, com a opção **Mostrar senha**.
+
+Por segurança, a senha começa vazia, não fica no código, não é salva em arquivo
+nem registrada no log. Preencha-a novamente quando a interface for reaberta.
+Os dados são passados somente ao processo filho por seu ambiente, não por
+argumentos de linha de comando; o motor os retira do ambiente antes de abrir
+Edge ou reabrir a interface. Isso evita repassá-los aos processos seguintes,
+mas não substitui a proteção da sessão Windows contra outros usuários locais.
+Se executar o motor diretamente, use a interface para fornecer o acesso.
+
+**Uma sessão DATASUL já aberta é reutilizada**, sem trocar o usuário conectado.
+As credenciais só são necessárias quando for preciso abrir pelo navegador.
+A URL solicitada usa HTTP: mantenha o uso restrito à rede interna autorizada.
 
 ---
 
@@ -88,7 +114,7 @@ Ajustes ficam no topo de `automacao_totvs.py`:
 python -m venv .venv && .venv\Scripts\activate
 
 # 2. instalar dependências
-pip install pandas openpyxl pyautogui pygetwindow pyperclip selenium
+pip install -r requirements.txt
 
 # 3. abrir a interface gráfica
 python lancamento_inventario.py
@@ -125,7 +151,11 @@ automacao/
 
 ### Imagens em `img/` (usadas pela automação)
 `+.png`, `saida.png`, `certo.png`, `confirmar.png`, `x.png`, `cancelar.png`,
-`vencimento.png`, `ok.png`, `abrir_popup.png`
+`vencimento.png`, `ok.png`, `abrir_popup.png` (alternativa para `abrir.png`).
+
+O botão Abrir usa confiança fixa de 90% (OpenCV), sem reduzir para limiares
+que possam clicar em imagens não relacionadas. Use uma captura compatível com
+a escala de tela/zoom do computador Windows.
 
 ---
 
@@ -140,7 +170,7 @@ automacao/
 Bibliotecas Python:
 
 ```bash
-pip install pandas openpyxl pyautogui pygetwindow pyperclip selenium
+pip install -r requirements.txt
 ```
 
 ---
@@ -174,7 +204,7 @@ para olhar em caso de problema.
 | Erro de permissão na planilha | Feche o arquivo no Excel antes de rodar a automação. |
 | START da aba "Importar Pedido" não faz nada | Abra `log_automacao.txt`: se o timestamp **não** mudou, o `Automacao_TOTVS.exe` nem iniciou (confira se ele está na mesma pasta da interface). Se mudou, o log mostra em qual passo parou e lista as janelas abertas — confira ali o título real da janela do DATASUL. |
 | O `CTRL+X` não abre a janela do lançador | O log mostra `A janela do lançador não apareceu com CTRL+X. Tentando CTRL+ALT+X...` — a automação já tenta o atalho alternativo sozinha. Se nenhum dos dois abrir, confira o atalho direto no TOTVS e ajuste `ATALHO_ABRIR_PROGRAMA` no topo de `automacao_totvs.py`. |
-| O texto digitou no lugar errado (não no TOTVS) | Significa que o DATASUL não era a janela ativa. O log traz `Não confirmei o primeiro plano do DATASUL; aplicando o truque do TAB...`; se o foco não for confirmado, a automação **para** e avisa na tela em vez de digitar às cegas. Clique na janela do DATASUL e clique em START de novo. |
+| O texto digitou no lugar errado (não no TOTVS) | Significa que o DATASUL não era a janela ativa. O log traz `Foco não confirmado no DATASUL; nenhuma tecla será enviada.`; se o foco não for confirmado, a automação **para** e avisa na tela em vez de digitar às cegas. Clique na janela do DATASUL e clique em START de novo. |
 
 ---
 
@@ -191,3 +221,22 @@ Gera `dist\Sistema_Inventario.exe` (interface) e `dist\Automacao_TOTVS.exe`
 
 **Desenvolvedor:** Deived - Faturamento
 **Versão:** 2.1
+
+## Testes deste fluxo
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Os testes simulam as APIs Windows, Selenium e teclado/mouse sem acessar o
+servidor interno. Validação final precisa ser feita no Windows com Edge e TOTVS:
+
+- DATASUL minimizado: deve reutilizar a sessão e confirmar foco antes de CTRL+X.
+- Apenas uma aba Edge chamada DATASUL Interactive: não pode ser confundida com o aplicativo.
+- DATASUL fechado: informar o acesso, verificar URL, Entrar, imagem Abrir e foco.
+- Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
+- Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
+
+Instale as dependências atualizadas e execute `compilar.bat` novamente para
+usar as alterações nos executáveis. O ambiente Linux de desenvolvimento não
+valida a interface gráfica Windows nem a conectividade com a rede interna.

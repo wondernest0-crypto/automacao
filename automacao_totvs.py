@@ -15,6 +15,7 @@ import sys
 from datetime import datetime
 import getpass
 import traceback
+from janelas_windows import janela_disponivel, janela_em_primeiro_plano
 
 # ========================================
 # SELENIUM - PARA ABRIR TOTVS VIA NAVEGADOR
@@ -81,9 +82,8 @@ COD_SAIDA = "91110018"
 # ========================================
 # CONFIGURAÇÕES TOTVS WEB
 # ========================================
-TOTVS_URL = "http://192.168.2.6:8080/totvs-login/loginForm"
-TOTVS_LOGIN = "expedicao"
-TOTVS_SENHA = "123mudar@"
+TOTVS_URL = "http://192.168.2.6:8080/totvs-menu"
+TEMPO_ESPERA_ABRIR = 30
 # Driver do Edge - coloque msedgedriver.exe na mesma pasta do script
 EDGE_DRIVER_PATH = os.path.join(DIR_BASE, "msedgedriver.exe")
 
@@ -120,9 +120,6 @@ TEMPO_ESPERA_DATASUL = 47
 
 # Tempo (segundos) aguardando a janela do lançador de programas (depois do CTRL+X)
 TEMPO_ESPERA_LANCADOR = 6
-
-# Tempo (segundos) esperando o DATASUL assumir a janela ativa (truque do TAB)
-TEMPO_ESPERA_FOCO = 2.5
 
 # Títulos (parciais) da janela do lançador de programas do DATASUL.
 # OBS: se o lançador tiver outro título ele AINDA é encontrado, porque a
@@ -177,6 +174,9 @@ class AutomacaoTOTVS:
         self.qtd_mv_retirada = 0
         self.primeiro_item = True
         self.total_itens_processar = 0
+        # Recebidas da interface, nunca pela linha de comando ou arquivo.
+        self.totvs_login = os.environ.pop("AUTOMACAO_TOTVS_LOGIN", "").strip()
+        self.totvs_senha = os.environ.pop("AUTOMACAO_TOTVS_SENHA", "")
         self._driver_login = None  # driver do Edge usado no login (fechar ao terminar)
     
     # ========================================
@@ -311,47 +311,24 @@ class AutomacaoTOTVS:
     # ========================================
     # JANELA DO DATASUL - BUSCA TOLERANTE
     # ========================================
-    # O título da janela muda conforme a versão do DATASUL ("Interactive" /
-    # "Interative") e ainda ganha sufixos (ex.: "DATASUL Interactive - CE0220").
-    # A aba de importação buscava APENAS "DATASUL Interative", sem fallback:
-    # se o título real fosse "Interactive" ela nunca achava a janela, caía no
-    # login pelo navegador, esperava TEMPO_ESPERA_DATASUL em vão e abortava -
-    # como o .exe não tem console, nada aparecia na tela.
-    TITULOS_DATASUL = (
-        "DATASUL Interactive",
-        "DATASUL Interative",
-        "DATASUL interactive",
-        "DATASUL interative",
-        "DATASUL",
-    )
+    TITULOS_DATASUL = ("DATASUL Interactive", "DATASUL Interative")
 
     def encontrar_janela_datasul(self, silencioso=False):
-        """Procura a janela do DATASUL tentando todas as variações de título.
-
-        Retorna a janela encontrada, ou None. Quando não acha nada, grava no
-        log a lista de janelas abertas - assim dá para ver o título real.
-
-        silencioso=True: não escreve avisos (usar dentro de laços de espera).
-        """
-        for titulo in self.TITULOS_DATASUL:
-            # No padrão genérico "DATASUL" a janela do navegador (tela de
-            # login do TOTVS) também casaria - ela é descartada de propósito.
-            ignorar = NAVEGADORES if titulo.upper() == "DATASUL" else ()
-            janela = self.encontrar_janela(titulo, ignorar=ignorar)
-            if janela:
-                if not silencioso:
-                    self.log_sucesso(
-                        f"Janela DATASUL encontrada (casou com '{titulo}'): "
-                        f"'{(janela.title or '').strip()}'"
-                    )
-                return janela
-
-        if silencioso:
-            return None
-
-        self.log_aviso("Nenhuma janela DATASUL encontrada.")
-        self.log_debug(f"Títulos tentados: {', '.join(self.TITULOS_DATASUL)}")
-        self.log_debug(f"Janelas abertas agora: {[j.title for j in self.lista_janelas()]}")
+        """Consulta janelas/processos do Windows, inclusive janelas minimizadas."""
+        for janela in self.lista_janelas():
+            titulo = (janela.title or '').strip()
+            if not any(t.lower() in titulo.lower() for t in self.TITULOS_DATASUL):
+                continue
+            if any(n.lower() in titulo.lower() for n in NAVEGADORES):
+                continue
+            if not janela_disponivel(getattr(janela, '_hWnd', None)):
+                continue
+            if not silencioso:
+                self.log_sucesso(f"Janela e processo DATASUL disponíveis: '{titulo}'")
+            return janela
+        if not silencioso:
+            self.log_aviso("Nenhuma janela DATASUL Interactive disponível no Windows.")
+            self.log_debug(f"Janelas abertas agora: {[j.title for j in self.lista_janelas()]}")
         return None
 
     def aguardar_janela_lancador(self, janelas_antes, timeout):
@@ -410,18 +387,8 @@ class AutomacaoTOTVS:
     # FOCO DAS JANELAS (o pyautogui digita na janela ATIVA)
     # ========================================
     def janela_em_foco(self, janela):
-        """True se a janela é a ATIVA (a que recebe as teclas), False se não
-        for, e None quando não é possível conferir."""
-        if not TEM_CTYPES:
-            return None
-        try:
-            hwnd = getattr(janela, '_hWnd', None)
-            if not hwnd:
-                return None
-            return ctypes.windll.user32.GetForegroundWindow() == hwnd
-        except Exception as e:
-            self.log_debug(f"Não consegui conferir a janela ativa: {e}")
-            return None
+        """Só confirma quando o HWND é realmente o primeiro plano do Windows."""
+        return janela_em_primeiro_plano(getattr(janela, '_hWnd', None))
 
     def _forcar_primeiro_plano(self, janela):
         """Força a janela para o primeiro plano pela API do Windows.
@@ -469,7 +436,7 @@ class AutomacaoTOTVS:
             self.log_debug(f"Clicando na barra de título da janela em ({x}, {y})")
             pyautogui.click(x, y)
             self.esperar(0.4)
-            return self.janela_em_foco(janela) is not False
+            return self.janela_em_foco(janela) is True
         except Exception as e:
             self.log_debug(f"Clique na barra de título falhou: {e}")
             return False
@@ -477,8 +444,8 @@ class AutomacaoTOTVS:
     def trazer_frente(self, janela, tentativas=3, silencioso=True):
         """Restaura, ativa e CONFERE se a janela ficou em primeiro plano.
 
-        Retorna True quando a janela está ativa (ou quando não é possível
-        conferir) e False quando o foco NÃO foi confirmado - nesse caso é
+        Retorna True somente quando a janela está comprovadamente ativa.
+        Se o foco não puder ser confirmado, retorna False: nesse caso é
         arriscado digitar, porque as teclas podem cair em outro programa.
         """
         if not janela:
@@ -495,14 +462,14 @@ class AutomacaoTOTVS:
                 self.log_debug(f"activate() falhou (tentativa {tentativa}): {e}")
 
             self.esperar(0.4)
-            if self.janela_em_foco(janela) is not False:
+            if self.janela_em_foco(janela) is True:
                 self.log_debug(f"Janela em primeiro plano: '{titulo}'")
                 return True
 
             # Reforço pela API do Windows
             self._forcar_primeiro_plano(janela)
             self.esperar(0.4)
-            if self.janela_em_foco(janela) is not False:
+            if self.janela_em_foco(janela) is True:
                 self.log_debug(f"Janela em primeiro plano (via API do Windows): '{titulo}'")
                 return True
 
@@ -523,38 +490,17 @@ class AutomacaoTOTVS:
         return False
 
     def garantir_foco_datasul(self):
-        """Deixa o DATASUL em primeiro plano e CONFIRMA que ele é a janela ativa.
-
-        O CTRL+X só chega no TOTVS se o DATASUL estiver realmente ativo. Se a
-        confirmação falhar, é usado o "truque do TAB": o TAB é enviado para a
-        janela escolhida e o Windows passa a considerá-la ativa - assim o
-        atalho não corre o risco de cair em outro programa.
-
-        Retorna a janela do DATASUL (em foco) ou None.
-        """
+        """Restaura e confirma foco; nunca envia TAB para uma janela desconhecida."""
         janela = self.encontrar_janela_datasul(silencioso=True)
         if not janela:
-            self.log_erro("A janela do DATASUL desapareceu!")
+            self.log_erro("A janela/processo DATASUL não está disponível!")
             return None
-
-        if self.trazer_frente(janela, tentativas=3, silencioso=True):
-            self.log_sucesso(f"DATASUL em primeiro plano: '{(janela.title or '').strip()}'")
+        if (self.trazer_frente(janela, tentativas=3, silencioso=True)
+                and janela_disponivel(getattr(janela, '_hWnd', None))
+                and self.janela_em_foco(janela) is True):
+            self.log_sucesso(f"Foco confirmado no DATASUL: '{janela.title}'")
             return janela
-
-        self.log_aviso("Não confirmei o primeiro plano do DATASUL; aplicando o truque do TAB...")
-        for tentativa in range(1, 4):
-            self.trazer_frente(janela, tentativas=1, silencioso=True)
-            try:
-                pyautogui.press('tab')
-            except Exception as e:
-                self.log_debug(f"Falha ao enviar TAB: {e}")
-            self.esperar(TEMPO_ESPERA_FOCO)
-            if self.janela_em_foco(janela) is not False:
-                self.log_sucesso("Foco confirmado no DATASUL (truque do TAB)")
-                return janela
-            self.log_debug(f"Truque do TAB: tentativa {tentativa}/3 sem confirmar o foco")
-
-        self.log_erro("Não consegui colocar a janela do DATASUL em primeiro plano")
+        self.log_erro("Foco não confirmado no DATASUL; nenhuma tecla será enviada.")
         return None
 
     def fechar_janela(self, titulo):
@@ -577,30 +523,20 @@ class AutomacaoTOTVS:
     # ABRIR TOTVS VIA NAVEGADOR
     # ========================================
     def abrir_totvs_navegador(self):
-        """Abre TOTVS pelo navegador Edge, faz login e aguarda a janela DATASUL."""
-        self.log("\n🌐 ABRINDO TOTVS VIA NAVEGADOR...")
-
-        if not self._login_totvs_navegador():
-            return False
-
-        # Aguardar TOTVS Desktop abrir
-        self.log("   >> Aguardando TOTVS Desktop iniciar (30 seg max)...")
-        for i in range(30):
-            time.sleep(1)
-            janela_datasul = self.encontrar_janela_datasul(silencioso=True)
-            if janela_datasul:
-                self.log_sucesso("DATASUL aberto com sucesso!")
-                self._fechar_driver_login()
-                return True
-
-        self.log_aviso("TOTVS não abriu no tempo esperado")
-        self._fechar_driver_login()
-        return False
+        """Usa o mesmo fluxo de abertura da importação."""
+        return self._abrir_datasul_com_navegador() is not None
 
     def _login_totvs_navegador(self):
         """Abre o Edge, acessa o TOTVS, preenche login/senha, clica em Entrar
         e trata o popup 'Abrir aplicativo'. NÃO aguarda a janela DATASUL.
         Guarda o driver em self._driver_login (feche com _fechar_driver_login)."""
+        if not self.totvs_login or not self.totvs_senha:
+            self.log_erro("Preencha login e senha na aba Acesso TOTVS antes de iniciar.")
+            self.mostrar_erro_visivel(
+                "Acesso TOTVS", "DATASUL não está disponível. Preencha login e senha "
+                "na aba Acesso TOTVS e inicie novamente.")
+            return False
+        sucesso = False
         try:
             # Configurar Edge
             edge_options = EdgeOptions()
@@ -632,49 +568,41 @@ class AutomacaoTOTVS:
             wait = WebDriverWait(driver, 15)
             
             # PASSO 1: Preencher LOGIN
-            self.log(f"   >> Preenchendo login: {TOTVS_LOGIN}")
+            self.log("   >> Preenchendo login informado na interface...")
             campo_login = wait.until(
-                EC.presence_of_element_located((By.ID, "txtUsername"))
+                EC.element_to_be_clickable((By.ID, "txtUsername"))
             )
             campo_login.clear()
-            campo_login.send_keys(TOTVS_LOGIN)
+            campo_login.send_keys(self.totvs_login)
             
             # PASSO 2: Preencher SENHA
             self.log("   >> Preenchendo senha...")
-            campo_senha = driver.find_element(By.ID, "txtPassword")
+            campo_senha = wait.until(EC.element_to_be_clickable((By.ID, "txtPassword")))
             campo_senha.clear()
-            campo_senha.send_keys(TOTVS_SENHA)
+            campo_senha.send_keys(self.totvs_senha)
             
             # PASSO 3: Clicar em ENTRAR
             self.log("   >> Clicando em 'Entrar'...")
-            btn_entrar = driver.find_element(By.ID, "btnEntrar")
+            btn_entrar = wait.until(EC.element_to_be_clickable((By.ID, "btnEntrar")))
             btn_entrar.click()
             
-            # PASSO 4: Aguardar carregamento
-            self.log("   >> Aguardando 10 segundos para carregar...")
-            time.sleep(10)
-            
-            # PASSO 5: Lidar com popup do Windows
-            self.log("   >> Verificando popup 'Abrir aplicativo'...")
-            popup_tratado = self.tratar_popup_abrir_aplicativo()
-            
-            if popup_tratado:
-                self.log_sucesso("Popup tratado! Aguardando TOTVS abrir...")
-            else:
-                self.log_aviso("Popup não detectado, continuando...")
-
-            return True
+            # O popup nativo do Edge não é acessível pelo DOM do Selenium.
+            sucesso = self.tratar_popup_abrir_aplicativo()
+            return sucesso
 
         except TimeoutException:
             self.log_erro("Timeout ao carregar página de login!")
             return False
-        except NoSuchElementException as e:
-            self.log_erro(f"Elemento não encontrado: {e}")
+        except NoSuchElementException:
+            self.log_erro("Campo de login, senha ou botão Entrar não encontrado.")
             return False
         except Exception as e:
-            self.log_erro(f"Erro ao abrir TOTVS via navegador: {e}")
-            traceback.print_exc()
+            # Não registrar detalhes do WebDriver que possam conter credenciais.
+            self.log_erro(f"Falha ao abrir TOTVS via navegador ({type(e).__name__}).")
             return False
+        finally:
+            if not sucesso:
+                self._fechar_driver_login()
 
     def _fechar_driver_login(self):
         """Fecha o driver do Edge usado no login (se existir)."""
@@ -687,53 +615,32 @@ class AutomacaoTOTVS:
         self._driver_login = None
 
     def tratar_popup_abrir_aplicativo(self):
-        """
-        Trata o popup do Windows 'deseja abrir este aplicativo'
-        """
-        self.log("   >> Tentando tratar popup 'Abrir aplicativo'...")
-        
-        # MÉTODO 1: Tentar clicar em imagem do botão "Abrir"
-        img_abrir = os.path.join(DIR_IMG, "abrir_popup.png")
-        if os.path.exists(img_abrir):
-            self.log("   >> Procurando imagem do botão 'Abrir'...")
-            for tentativa in range(5):
-                pos = self.encontrar_imagem(img_abrir, conf_inicial=0.8)
+        """Espera abrir.png; sem atalhos cegos quando a imagem não aparece."""
+        imagens = [os.path.join(DIR_IMG, "abrir.png"),
+                   os.path.join(DIR_IMG, "abrir_popup.png")]
+        imagens = [imagem for imagem in imagens if os.path.isfile(imagem)]
+        if not imagens:
+            self.log_erro("Coloque abrir.png na pasta img (abrir_popup.png também é aceito).")
+            return False
+        self.log("   >> Procurando abrir.png / abrir_popup.png após Entrar...")
+        limite = time.monotonic() + TEMPO_ESPERA_ABRIR
+        while time.monotonic() < limite:
+            # Instalações com permissão já salva podem abrir sem popup.
+            if self.encontrar_janela_datasul(silencioso=True):
+                return True
+            for imagem in imagens:
+                try:
+                    pos = pyautogui.locateCenterOnScreen(imagem, confidence=0.9)
+                except pyautogui.ImageNotFoundException:
+                    pos = None
                 if pos:
                     pyautogui.click(pos)
-                    self.log_sucesso("Clicou no botão 'Abrir' via imagem!")
+                    self.log_sucesso(f"Clicou em {os.path.basename(imagem)}!")
                     return True
-                time.sleep(1)
-        
-        # MÉTODO 2: Tentar atalhos de teclado
-        self.log("   >> Tentando atalhos de teclado...")
-        
-        # Aguardar popup aparecer
-        time.sleep(2)
-        
-        # Tentar Alt+A (atalho comum para "Abrir")
-        self.log("   >> Tentando Alt+A...")
-        pyautogui.hotkey('alt', 'a')
-        time.sleep(1)
-        
-        # Verificar se funcionou
-        janela_datasul = self.encontrar_janela_datasul(silencioso=True)
-        if janela_datasul:
-            return True
-        
-        # Tentar Enter (se o botão Abrir já estiver focado)
-        self.log("   >> Tentando Enter...")
-        pyautogui.press('enter')
-        time.sleep(1)
-        
-        # MÉTODO 3: Tentar Tab + Enter para navegar até o botão
-        self.log("   >> Tentando Tab + Enter...")
-        pyautogui.press('tab')
-        time.sleep(0.3)
-        pyautogui.press('enter')
-        time.sleep(1)
-        
+            time.sleep(0.5)
+        self.log_erro("Botão Abrir não encontrado. Confira o login, a senha e a imagem do popup.")
         return False
-        
+
     # ========================================
     # PREPARAR TOTVS
     # ========================================
@@ -798,6 +705,8 @@ class AutomacaoTOTVS:
         self.log("   >> Aguardando 5 segundos antes de abrir CE0220...")
         self.esperar(5)
         
+        if not self.garantir_foco_datasul():
+            return False
         self.log("⌨️ CTRL+ALT+X...")
         pyautogui.hotkey('ctrl', 'alt', 'x')
         self.esperar(TEMPO_MEDIO)
@@ -2456,14 +2365,15 @@ class AutomacaoTOTVS:
 
         self.log(f"   >> Aguardando a janela do DATASUL (até {TEMPO_ESPERA_DATASUL}s)...")
         janela = None
-        for i in range(TEMPO_ESPERA_DATASUL):
-            time.sleep(1)
-            janela = self.encontrar_janela_datasul(silencioso=True)
-            if janela:
-                self.log_sucesso(f"Janela do DATASUL apareceu após {i + 1}s!")
-                break
-
-        self._fechar_driver_login()
+        try:
+            for i in range(TEMPO_ESPERA_DATASUL):
+                time.sleep(1)
+                janela = self.encontrar_janela_datasul(silencioso=True)
+                if janela:
+                    self.log_sucesso(f"Janela do DATASUL apareceu após {i + 1}s!")
+                    break
+        finally:
+            self._fechar_driver_login()
 
         if not janela:
             self.log_erro("❌ A janela do DATASUL não apareceu no tempo esperado!")
@@ -2525,8 +2435,10 @@ class AutomacaoTOTVS:
         # receber o código do programa
         if janela_lancador:
             self.log("🔺 Trazendo a janela do lançador para frente...")
-            self.trazer_frente(janela_lancador, tentativas=3, silencioso=False)
-            self.esperar(0.5)
+            if not self.trazer_frente(janela_lancador, tentativas=3, silencioso=False):
+                return False
+        elif not self.garantir_foco_datasul():
+            return False
 
         if LIMPAR_CAMPO_LANCADOR:
             try:
