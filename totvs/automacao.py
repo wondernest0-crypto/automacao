@@ -17,6 +17,7 @@ import getpass
 import traceback
 from core.caminhos import DIR_BASE, DIR_IMG, DIR_DATA, DIR_ASSETS
 from core.janelas import janela_disponivel, janela_em_primeiro_plano
+from core import rdp as core_rdp
 
 # ========================================
 # SELENIUM - PARA ABRIR TOTVS VIA NAVEGADOR
@@ -84,6 +85,25 @@ EDGE_DRIVER_PATH = os.path.join(DIR_BASE, "msedgedriver.exe")
 TEMPO_CURTO = 2
 TEMPO_MEDIO = 3
 TEMPO_LONGO = 6
+
+# ========================================
+# CONFIGURAÇÕES - VPS (aberta ANTES de executar o DATASUL)
+# ========================================
+# Antes de executar o DATASUL, a automação abre a VPS: procura
+# SWPROGRAMACAO.rdp na área de trabalho e o abre (igual a dar dois cliques).
+# Se já houver uma Conexão de Área de Trabalho Remota aberta, ela é reutilizada.
+ARQUIVO_RDP_VPS = "SWPROGRAMACAO.rdp"
+
+# Títulos (parciais) da janela da Conexão de Área de Trabalho Remota (mstsc),
+# em português e em inglês: servem para detectar uma sessão já aberta.
+TITULOS_RDP = (
+    "Conexão de Área de Trabalho Remota",
+    "Conexão de Area de Trabalho Remota",
+    "Remote Desktop Connection",
+)
+
+# Tempo (segundos) aguardando a VPS abrir antes de executar o DATASUL.
+TEMPO_ESPERA_RDP = 15
 
 # ========================================
 # CONFIGURAÇÕES - IMPORTAÇÃO DE PEDIDO (HONDA & GM)
@@ -563,6 +583,70 @@ class AutomacaoTOTVS:
     # ========================================
     # ABRIR TOTVS VIA NAVEGADOR
     # ========================================
+    def _janela_rdp_aberta(self):
+        """Retorna a janela da Conexão de Área de Trabalho Remota, se já houver."""
+        try:
+            for janela in self.lista_janelas():
+                titulo = (janela.title or '').strip()
+                if any(t.lower() in titulo.lower() for t in TITULOS_RDP):
+                    return janela
+        except Exception:
+            pass
+        return None
+
+    def abrir_vps(self):
+        """Abre a VPS ANTES de executar o DATASUL (SWPROGRAMACAO.rdp do desktop).
+
+        Ordem: (1) se já existe uma janela da Conexão de Área de Trabalho
+        Remota, a sessão é reutilizada e nada é reaberto; (2) senão, procura
+        SWPROGRAMACAO.rdp na área de trabalho (Desktop, OneDrive/Desktop,
+        Área de Trabalho e OneDrive/Área de Trabalho) e o abre igual a dar
+        dois cliques; (3) aguarda TEMPO_ESPERA_RDP para a VPS carregar.
+
+        Retorna True quando a VPS está aberta (antes ou agora). Retorna False
+        quando o .rdp não foi encontrado nem há sessão aberta — nesse caso o
+        DATASUL não deve ser executado.
+        """
+        self.log("🖥️ ABRINDO A VPS (SWPROGRAMACAO.rdp da área de trabalho)...")
+
+        janela = self._janela_rdp_aberta()
+        if janela:
+            self.log_sucesso(f"Conexão RDP já aberta ('{(janela.title or '').strip()}'); reutilizando a sessão.")
+            return True
+
+        try:
+            caminho = core_rdp.caminho_rdp(ARQUIVO_RDP_VPS)
+        except core_rdp.RdpNaoEncontrado as erro:
+            self.log_erro(f"❌ {erro}")
+            self.mostrar_erro_visivel(
+                "Importar Pedido - ERRO",
+                "Não encontrei o SWPROGRAMACAO.rdp na área de trabalho.\n\n"
+                "Coloque o arquivo no desktop e clique em START de novo.\n"
+                f"Log: {ARQUIVO_LOG}"
+            )
+            return False
+
+        try:
+            core_rdp.abrir_rdp(caminho)
+        except Exception as erro:
+            self.log_erro(f"❌ Falha ao abrir {ARQUIVO_RDP_VPS}: {type(erro).__name__}: {erro}")
+            self.mostrar_erro_visivel(
+                "Importar Pedido - ERRO",
+                f"Não consegui abrir {ARQUIVO_RDP_VPS}.\n\n"
+                "Dê dois cliques no arquivo na área de trabalho e clique em START de novo.\n"
+                f"Log: {ARQUIVO_LOG}"
+            )
+            return False
+        self.log_sucesso(f"{ARQUIVO_RDP_VPS} aberto: {caminho}")
+
+        self.log(f"   >> Aguardando {TEMPO_ESPERA_RDP}s para a VPS abrir antes de executar o DATASUL...")
+        self.esperar(TEMPO_ESPERA_RDP)
+        if self._janela_rdp_aberta():
+            self.log_sucesso("Janela da VPS confirmada na tela.")
+        else:
+            self.log_aviso("Janela da VPS não confirmada pelo título; seguindo o fluxo (o mstsc pode ter outro título nesta máquina).")
+        return True
+
     def abrir_totvs_navegador(self):
         """Usa o mesmo fluxo de abertura da importação."""
         return self._abrir_datasul_com_navegador() is not None
@@ -2570,6 +2654,9 @@ class AutomacaoTOTVS:
 
         Ordem do processo:
 
+        0. Abre a VPS: procura SWPROGRAMACAO.rdp na área de trabalho e o
+           abre (sessão RDP já aberta é reutilizada). Sem a VPS aberta,
+           o DATASUL não é executado.
         1. Procura uma janela disponível do "DATASUL Interactive";
         2. Se não existir, minimiza as janelas, abre o TOTVS pelo navegador
            e aguarda até TEMPO_ESPERA_DATASUL;
@@ -2592,6 +2679,17 @@ class AutomacaoTOTVS:
         self.log("=" * 60)
 
         diretorio = DIRETORIO_IMPORTACAO_GM
+
+        # --------------------------------------------------
+        # PASSO 0: abrir a VPS ANTES de executar o DATASUL.
+        # Procura SWPROGRAMACAO.rdp na área de trabalho e o abre (igual a dar
+        # dois cliques); sessão RDP já aberta é reutilizada. Sem a VPS aberta,
+        # o DATASUL não é executado.
+        # --------------------------------------------------
+        if not self.abrir_vps():
+            self.log_erro("❌ VPS não aberta; o DATASUL não será executado.")
+            self.reabrir_interface()
+            return False
 
         # --------------------------------------------------
         # PASSO 1: procurar DATASUL ANTES de minimizar/abrir o navegador.

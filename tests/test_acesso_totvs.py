@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch, call
 
 from core import janelas as janelas_windows
+from core.rdp import RdpNaoEncontrado
 from totvs.credenciais import ErroCredenciais
 
 RAIZ = Path(__file__).resolve().parents[1]
@@ -39,9 +40,11 @@ class TestFluxo(unittest.TestCase):
         self.gui.ImageNotFoundException = type('ImageNotFoundException', (Exception,), {})
         self.relogio = Mock()
         self.relogio.monotonic.side_effect = range(10000)
+        self.core_rdp = Mock()
+        self.core_rdp.RdpNaoEncontrado = RdpNaoEncontrado  # classe real: usada em "except"
         self.env = dict(os=os, time=self.relogio, sys=sys, pyautogui=self.gui,
                         pyperclip=Mock(), janela_disponivel=Mock(return_value=True),
-                        janela_em_primeiro_plano=Mock(return_value=True),
+                        janela_em_primeiro_plano=Mock(return_value=True), core_rdp=self.core_rdp,
                         DIR_IMG=str(RAIZ / 'img'), DIR_BASE=str(RAIZ),
                         EDGE_DRIVER_PATH=str(RAIZ / 'msedgedriver.exe'), ARQUIVO_LOG='teste.log',
                         webdriver=Mock(), EdgeOptions=Mock(), EdgeService=Mock(),
@@ -158,6 +161,58 @@ class TestFluxo(unittest.TestCase):
         self.bot.encontrar_janela_datasul = Mock(return_value=self.janela)
         self.bot.garantir_foco_datasul = Mock(return_value=self.janela)
         self.bot.abrir_programa_no_totvs = Mock(return_value=True)
+
+    def test_vps_e_aberta_antes_de_executar_datasul(self):
+        eventos = []
+        self.core_rdp.caminho_rdp.side_effect = (
+            lambda *a, **k: eventos.append('procurar_rdp') or 'C:/Users/t/Desktop/SWPROGRAMACAO.rdp')
+        self.core_rdp.abrir_rdp.side_effect = lambda *a, **k: eventos.append('abrir_rdp')
+        self.bot.encontrar_janela_datasul = Mock(
+            side_effect=lambda *a, **k: eventos.append('procurar_datasul') or self.janela)
+        self.bot.garantir_foco_datasul = Mock(return_value=self.janela)
+        self.bot.abrir_programa_no_totvs = Mock(return_value=True)
+
+        self.assertTrue(self.bot.importar_pedido())
+
+        self.assertEqual(eventos[0], 'procurar_rdp')
+        self.assertLess(eventos.index('abrir_rdp'), eventos.index('procurar_datasul'))
+
+    def test_sessao_rdp_ja_aberta_e_reutilizada_sem_reabrir(self):
+        self.bot.lista_janelas = Mock(return_value=[
+            SimpleNamespace(title='Conexão de Área de Trabalho Remota', _hWnd=9)])
+        self.bot.encontrar_janela_datasul = Mock(return_value=self.janela)
+        self.bot.garantir_foco_datasul = Mock(return_value=self.janela)
+        self.bot.abrir_programa_no_totvs = Mock(return_value=True)
+
+        self.assertTrue(self.bot.importar_pedido())
+
+        self.core_rdp.caminho_rdp.assert_not_called()
+        self.core_rdp.abrir_rdp.assert_not_called()
+        self.bot.encontrar_janela_datasul.assert_called()
+
+    def test_sem_rdp_na_area_de_trabalho_o_datasul_nao_executa(self):
+        self.bot.encontrar_janela_datasul = Mock()
+        self.core_rdp.caminho_rdp.side_effect = RdpNaoEncontrado('não achei o SWPROGRAMACAO.rdp')
+
+        self.assertFalse(self.bot.importar_pedido())
+
+        self.core_rdp.abrir_rdp.assert_not_called()
+        self.bot.encontrar_janela_datasul.assert_not_called()
+        self.bot.mostrar_erro_visivel.assert_called_once()
+        self.bot.reabrir_interface.assert_called_once()
+
+    def test_rdp_ja_aberto_tambem_nao_reabre_nem_bloqueia(self):
+        self.bot.lista_janelas = Mock(return_value=[
+            SimpleNamespace(title='Remote Desktop Connection', _hWnd=8)])
+        self.bot.encontrar_janela_datasul = Mock(return_value=None)
+        self.bot._abrir_datasul_com_navegador = Mock(return_value=self.janela)
+        self.bot.garantir_foco_datasul = Mock(return_value=self.janela)
+        self.bot.abrir_programa_no_totvs = Mock(return_value=True)
+
+        self.assertTrue(self.bot.importar_pedido())
+
+        self.core_rdp.abrir_rdp.assert_not_called()
+        self.bot._abrir_datasul_com_navegador.assert_called_once()
 
     def test_sequencia_exata_ate_executar_sem_enter_final(self):
         self.preparar_importacao_aberta()

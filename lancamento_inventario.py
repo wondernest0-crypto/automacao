@@ -601,12 +601,13 @@ class LancamentoInventario:
         tk.Label(
             frame_passos,
             text=(
-                "1) Procura o DATASUL; se ausente, inicia pelo Edge\n"
-                "2) Abre/traz o \"DATASUL Interactive\" para a frente\n"
-                "3) CTRL+X  ->  abre a janela do lançador de programas\n"
-                "4) Digita ESPD0001 e tecla ENTER\n"
-                "5) 1x TAB -> ENTER; depois 5x TAB -> ENTER -> cola a pasta GM -> ENTER\n"
-                "6) 4x TAB  ->  seta ↓  ->  seta ↑  ->  clica Abrir  ->  clica Executar"
+                "1) Abre a VPS (SWPROGRAMACAO.rdp da área de trabalho)\n"
+                "2) Procura o DATASUL; se ausente, inicia pelo Edge\n"
+                "3) Abre/traz o \"DATASUL Interactive\" para a frente\n"
+                "4) CTRL+X  ->  abre a janela do lançador de programas\n"
+                "5) Digita ESPD0001 e tecla ENTER\n"
+                "6) 1x TAB -> ENTER; depois 5x TAB -> ENTER -> cola a pasta GM -> ENTER\n"
+                "7) 4x TAB  ->  seta ↓  ->  seta ↑  ->  clica Abrir  ->  clica Executar"
             ),
             font=('Arial', 9),
             fg='#dfe6e9',

@@ -36,9 +36,11 @@ O código está separado em partes, para que cada uma evolua sem mexer nas outra
 |---|---|---|
 | `totvs/` | **TOTVS** | Ajuste de estoque, importação ESPD0001 (aba Importar Pedido HONDA & GM, por enquanto) e acesso ao TOTVS pelo Edge. |
 | `swprogramacao/` | **SWProgramação** | Acesso à VPS. **Passo 1 pronto para teste** (abre a VPS e para na ULIANA carregada). Configurações e pedidos HONDA e GM: *em construção.* |
-| `core/` | Compartilhado | Caminhos do projeto (modo .py e .exe), ações de tela por imagem e validação de janelas do Windows. |
+| `core/` | Compartilhado | Caminhos do projeto (modo .py e .exe), ações de tela por imagem, validação de janelas do Windows e busca/abertura do `.rdp` da área de trabalho. |
 
 Fluxo previsto: primeiro a parte **SWProgramação** (VPS: pedido HONDA e depois GM); em seguida, a parte **TOTVS**. A interface (`lancamento_inventario.py`) fica na raiz e será o ponto que liga as partes.
+
+No fluxo de importação, o START já respeita essa ordem: **abre o `SWPROGRAMACAO.rdp` da área de trabalho antes de executar o DATASUL** (sessão RDP já aberta é reutilizada; sem o `.rdp` e sem sessão aberta, o DATASUL não é executado).
 
 `lancamento_inventario.py` e `automacao_totvs.py` continuam na raiz porque o `compilar.bat`, os `.spec` e o workflow usam esses nomes. O teste `tests/test_limites_partes.py` impede que as partes importem umas às outras.
 
@@ -86,9 +88,16 @@ A interface tem uma segunda aba, **"Importar Pedido HONDA & GM"**, com um botão
 grande e vermelho **START**. Ao clicar, roda o fluxo de importação
 (`automacao_totvs.py importar`):
 
-1. Procura primeiro uma janela DATASUL disponível, **antes de minimizar ou
+1. **Abre a VPS antes de executar o DATASUL:** procura
+   `SWPROGRAMACAO.rdp` na área de trabalho (Desktop, OneDrive/Desktop,
+   Área de Trabalho e OneDrive/Área de Trabalho) e o abre igual a dar dois
+   cliques. Se já houver uma Conexão de Área de Trabalho Remota aberta, a
+   sessão é reutilizada (nada é reaberto). Depois, aguarda
+   `TEMPO_ESPERA_RDP` para a VPS carregar. **Sem o `.rdp` e sem sessão
+   aberta, o fluxo para com aviso e o DATASUL não é executado.**
+2. Procura primeiro uma janela DATASUL disponível, **antes de minimizar ou
    abrir o navegador**. Uma sessão já aberta é reutilizada.
-2. Consulta as janelas nativas do Windows (sem abrir visualmente o Gerenciador
+3. Consulta as janelas nativas do Windows (sem abrir visualmente o Gerenciador
    de Tarefas). Aceita **"DATASUL Interactive"** ou **"DATASUL Interative"**,
    inclusive minimizadas e com sufixos no título. Exige janela visível/responsiva
    e processo vivo; descarta navegadores pelo título **e pelo executável**.
@@ -96,33 +105,33 @@ grande e vermelho **START**. Ao clicar, roda o fluxo de importação
    `prowin32.exe` isolado **não bloqueia** a abertura e não é encerrado.
    Confere as janelas novamente antes de iniciar outra sessão. Sem janela,
    minimiza as demais com `WIN+M` (não usa `WIN+D`, que alterna a área de trabalho).
-3. Se não encontrar uma janela disponível, abre o Edge em
+4. Se não encontrar uma janela disponível, abre o Edge em
    `http://192.168.2.6:8080/totvs-menu`, preenche o acesso informado na interface
    e clica em **Entrar**. Procura `img/abrir.png` (ou `img/abrir_popup.png`,
    nome existente nesta versão) por até 30s e clica no botão encontrado.
    Se o DATASUL abrir sem popup, segue normalmente. Sem imagem correspondente,
    interrompe com aviso em vez de enviar atalhos às cegas.
    Depois do clique, aguarda até 47s pela janela/processo DATASUL.
-4. Restaura e ativa a janela, usando também `SetForegroundWindow`,
+5. Restaura e ativa a janela, usando também `SetForegroundWindow`,
    `BringWindowToTop` e clique na barra de título. **Exige confirmação real do
    foco antes do CTRL+X**; se a consulta falhar ou outra janela estiver ativa,
    interrompe. Não envia TAB para tentar ativar uma janela desconhecida.
-5. **CTRL+X** → abre a **janela do lançador de programas**. A automação espera
+6. **CTRL+X** → abre a **janela do lançador de programas**. A automação espera
    essa janela aparecer (pelos títulos conhecidos **ou** por "qualquer janela
    nova" que surja depois do atalho), traz ela para a frente e só então digita.
-6. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
+7. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
    antes de digitar, para não juntar com um código que já estivesse lá).
-7. Após o carregamento do programa, envia **1x TAB** → **ENTER** para confirmar
+8. Após o carregamento do programa, envia **1x TAB** → **ENTER** para confirmar
    a tela inicial do ESPD0001.
-8. Envia **5x TAB consecutivos**, sem ENTER entre eles, para chegar ao campo de
+9. Envia **5x TAB consecutivos**, sem ENTER entre eles, para chegar ao campo de
    endereço. Depois pressiona **ENTER**, antes de colar.
-9. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
-10. Envia **4x** TAB → seta **↓** → seta **↑**.
-11. Procura **`img/abrir_popup.png`** e clica; em seguida procura
+10. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
+11. Envia **4x** TAB → seta **↓** → seta **↑**.
+12. Procura **`img/abrir_popup.png`** e clica; em seguida procura
     **`img/executar.png`** e clica. Aguarda até 30s por cada botão, com confiança
     fixa de 90%. Arquivo ausente, erro ou botão não encontrado interrompe o
     fluxo com aviso; não tenta confirmar por ENTER.
-12. Encerra após o clique em Executar e reabre a interface, **sem ENTER final**
+13. Encerra após o clique em Executar e reabre a interface, **sem ENTER final**
     nem outras confirmações. Esta etapa não verifica o resultado da importação
     dentro do TOTVS.
 
@@ -131,6 +140,9 @@ passo a passo numerado igual a este.
 
 Ajustes ficam no topo de `totvs/automacao.py`:
 
+- `ARQUIVO_RDP_VPS` — nome do arquivo da VPS na área de trabalho (padrão `SWPROGRAMACAO.rdp`).
+- `TITULOS_RDP` — títulos da janela da Conexão de Área de Trabalho Remota, para reutilizar a sessão já aberta.
+- `TEMPO_ESPERA_RDP` — tempo (s) aguardando a VPS abrir antes de executar o DATASUL (padrão 15).
 - `ATALHO_ABRIR_PROGRAMA` — atalho do lançador (padrão `CTRL+X`).
 - `ATALHO_ABRIR_PROGRAMA_ALT` / `TENTAR_ATALHO_ALTERNATIVO` — atalho alternativo
   (`CTRL+ALT+X`, o mesmo usado na automação de inventário) tentado
@@ -222,7 +234,8 @@ automacao/
 ├── core/                       Código compartilhado pelas partes
 │   ├── caminhos.py             Pastas do projeto (modo .py e .exe)
 │   ├── telas.py                Ações de tela por imagem (PyAutoGUI)
-│   └── janelas.py              Validação de janelas do Windows
+│   ├── janelas.py              Validação de janelas do Windows
+│   └── rdp.py                  Procura e abre o SWPROGRAMACAO.rdp da área de trabalho
 │
 ├── tests/                      Testes automatizados
 │
@@ -307,6 +320,7 @@ para olhar em caso de problema.
 | START da aba "Importar Pedido" não faz nada | Abra `log_automacao.txt`: se o timestamp **não** mudou, o `Automacao_TOTVS.exe` nem iniciou (confira se ele está na mesma pasta da interface). Se mudou, o log mostra em qual passo parou e lista as janelas abertas — confira ali o título real da janela do DATASUL. |
 | O `CTRL+X` não abre a janela do lançador | O log mostra `A janela do lançador não apareceu com CTRL+X. Tentando CTRL+ALT+X...` — a automação já tenta o atalho alternativo sozinha. Se nenhum dos dois abrir, confira o atalho direto no TOTVS e ajuste `ATALHO_ABRIR_PROGRAMA` no topo de `totvs/automacao.py`. |
 | O texto digitou no lugar errado (não no TOTVS) | Significa que o DATASUL não era a janela ativa. O log traz `Foco não confirmado no DATASUL; nenhuma tecla será enviada.`; se o foco não for confirmado, a automação **para** e avisa na tela em vez de digitar às cegas. Clique na janela do DATASUL e clique em START de novo. |
+| Importação para com "SWPROGRAMACAO.rdp não encontrado" | Coloque o arquivo na área de trabalho (valem Desktop, OneDrive/Desktop, Área de Trabalho e OneDrive/Área de Trabalho). Enquanto a VPS não abre, o DATASUL não é executado de propósito; se a sessão RDP já estiver aberta, o arquivo nem é procurado. |
 
 ---
 
@@ -343,6 +357,7 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
 - SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp` e as 4 imagens; depois, rodar até o `CHECKPOINT`.
+- Importação: ao clicar em START, o log deve mostrar a abertura do `SWPROGRAMACAO.rdp` ANTES da busca pelo DATASUL. Com uma sessão RDP já aberta, nada deve ser reaberto; sem o `.rdp` (e sem sessão aberta), o DATASUL não deve ser executado.
 
 Instale as dependências atualizadas e execute `compilar.bat` novamente para
 usar as alterações nos executáveis. O ambiente Linux de desenvolvimento não
