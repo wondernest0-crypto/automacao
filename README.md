@@ -35,12 +35,48 @@ O código está separado em partes, para que cada uma evolua sem mexer nas outra
 | Pasta | Parte | O que faz |
 |---|---|---|
 | `totvs/` | **TOTVS** | Ajuste de estoque, importação ESPD0001 (aba Importar Pedido HONDA & GM, por enquanto) e acesso ao TOTVS pelo Edge. |
-| `swprogramacao/` | **SWProgramação** | Acesso à VPS e importação dos pedidos HONDA e GM. *Em construção.* |
-| `core/` | Compartilhado | Caminhos do projeto (modo .py e .exe) e validação de janelas do Windows. |
+| `swprogramacao/` | **SWProgramação** | Acesso à VPS. **Passo 1 pronto para teste** (abre a VPS e para na ULIANA carregada). Configurações e pedidos HONDA e GM: *em construção.* |
+| `core/` | Compartilhado | Caminhos do projeto (modo .py e .exe), ações de tela por imagem e validação de janelas do Windows. |
 
 Fluxo previsto: primeiro a parte **SWProgramação** (VPS: pedido HONDA e depois GM); em seguida, a parte **TOTVS**. A interface (`lancamento_inventario.py`) fica na raiz e será o ponto que liga as partes.
 
 `lancamento_inventario.py` e `automacao_totvs.py` continuam na raiz porque o `compilar.bat`, os `.spec` e o workflow usam esses nomes. O teste `tests/test_limites_partes.py` impede que as partes importem umas às outras.
+
+---
+
+## 🖥️ SWProgramação (VPS): passo 1
+
+Este passo abre a VPS e **para quando o programa carrega** (checkpoint). Ainda não faz configurações nem importação de pedidos.
+
+**O que ele faz, em ordem:**
+
+1. Abre o `SWPROGRAMACAO.rdp` da área de trabalho (igual a dar dois cliques).
+2. Espera a tela de login e preenche:
+   - `login.png` (login do Windows): usuário, TAB, senha, ENTER;
+   - `login_edi.png` (login do EDI, "Usuário:"): usuário, TAB, senha, ENTER.
+   Cada login é digitado **uma vez**. Se a senha estiver errada, o passo para com erro e não tenta de novo.
+3. Quando aparece `informe_parceiro.png`, dá duplo clique em `uliana.png`.
+4. Espera o programa carregar e **para**. O log registra `CHECKPOINT`.
+
+**Antes de rodar:**
+
+- Coloque as 4 capturas em `img/swprogramacao/`: `login.png`, `login_edi.png`, `informe_parceiro.png` e `uliana.png`. Use capturas reais da tela da VPS, na mesma resolução e zoom do computador que vai rodar. Não use imagens ilustrativas.
+- Mantenha a área de transferência ativa no RDP (é o padrão do Windows). Os dados são colados, não digitados, para evitar problemas com `@` e outros símbolos.
+- Deixe a janela da VPS visível e não minimizada: a automação enxerga só o que está na tela.
+- Ainda não existe `.exe` para esta parte. Rode pelo Python, como abaixo.
+
+**Como rodar** (na pasta do projeto):
+
+```
+python -m swprogramacao --diagnostico   # confere o .rdp e as 4 imagens, sem digitar nada
+python -m swprogramacao                 # roda o passo 1; pede os logins e senhas no terminal
+```
+
+Com a VPS aberta, o `--diagnostico` mostra onde cada imagem foi encontrada. Se alguma aparecer como "não visível", a captura não corresponde à tela atual.
+
+**Segurança:** logins e senhas são digitados no terminal a cada execução. Não são salvos em arquivo nem aparecem no log. O registro fica em `log_swprogramacao.txt`, que é ignorado pelo Git.
+
+**Se parar:** o terminal e o log dizem em qual etapa parou (login do Windows, login do EDI, ULIANA não encontrada ou tempo esgotado).
 
 ---
 
@@ -178,10 +214,14 @@ automacao/
 │   ├── automacao.py            Motor: ajuste de estoque, importação ESPD0001 e login
 │   └── credenciais.py          Acesso TOTVS salvo com DPAPI (somente Windows)
 │
-├── swprogramacao/              PARTE SWPROGRAMAÇÃO (VPS) - em construção
+├── swprogramacao/              PARTE SWPROGRAMAÇÃO (VPS)
+│   ├── __main__.py             Linha de comando: python -m swprogramacao
+│   ├── fluxo.py                Passo 1: logins, ULIANA e checkpoint
+│   └── rdp.py                  Acha e abre o SWPROGRAMACAO.rdp
 │
 ├── core/                       Código compartilhado pelas partes
 │   ├── caminhos.py             Pastas do projeto (modo .py e .exe)
+│   ├── telas.py                Ações de tela por imagem (PyAutoGUI)
 │   └── janelas.py              Validação de janelas do Windows
 │
 ├── tests/                      Testes automatizados
@@ -215,6 +255,9 @@ Não use uma imagem ilustrativa: a busca precisa da aparência real do botão.
 Os botões Abrir e Executar usam confiança fixa de 90% (OpenCV), sem reduzir para limiares
 que possam clicar em imagens não relacionadas. Use uma captura compatível com
 a escala de tela/zoom do computador Windows.
+
+As imagens da VPS (passo 1 da SWProgramação) ficam em `img/swprogramacao/`; veja a seção
+própria acima.
 
 ---
 
@@ -299,6 +342,7 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 - Testar **Esquecer acesso** e confirmar que a senha não volta ao reabrir.
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
+- SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp` e as 4 imagens; depois, rodar até o `CHECKPOINT`.
 
 Instale as dependências atualizadas e execute `compilar.bat` novamente para
 usar as alterações nos executáveis. O ambiente Linux de desenvolvimento não

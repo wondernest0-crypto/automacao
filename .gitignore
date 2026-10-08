@@ -11,3 +11,6 @@ venv/
 
 # Icone local (opcional, gerado/colocado a mao)
 assets/
+
+# Log do passo 1 da parte SWProgramação (não versionar)
+log_swprogramacao.txt
