@@ -52,17 +52,20 @@ Este passo abre a VPS e **para quando o programa carrega** (checkpoint). Ainda n
 
 **O que ele faz, em ordem:**
 
-1. Abre o `SWPROGRAMACAO.rdp` da área de trabalho (igual a dar dois cliques).
-2. Espera a tela de login e preenche:
+1. Confere se as 4 capturas existem em `img/swprogramacao/`. Se faltar alguma, **para antes de abrir a VPS** e diz quais faltam (imagem ausente é arquivo ausente, não "não achei na tela").
+2. Abre o `SWPROGRAMACAO.rdp` da área de trabalho (igual a dar dois cliques). A busca cobre a pasta real da área de trabalho do Windows (API de pastas conhecidas), `Desktop`, `Área de Trabalho` e as versões dentro do OneDrive.
+3. A cada ciclo, **procura TODAS as imagens na tela antes de decidir o próximo passo**:
    - `login.png` (login do Windows): usuário, TAB, senha, ENTER;
-   - `login_edi.png` (login do EDI, "Usuário:"): usuário, TAB, senha, ENTER.
+   - `login_edi.png` (login do EDI, "Usuário:"): usuário, TAB, senha, ENTER;
+   - `informe_parceiro.png`: é o sinal de que os logins terminaram.
    Cada login é digitado **uma vez**. Se a senha estiver errada, o passo para com erro e não tenta de novo.
-3. Quando aparece `informe_parceiro.png`, dá duplo clique em `uliana.png`.
-4. Espera o programa carregar e **para**. O log registra `CHECKPOINT`.
+4. Quando aparece `informe_parceiro.png`, dá duplo clique em `uliana.png`.
+5. Espera o programa carregar e **para**. O log registra `CHECKPOINT`.
 
 **Antes de rodar:**
 
-- Coloque as 4 capturas em `img/swprogramacao/`: `login.png`, `login_edi.png`, `informe_parceiro.png` e `uliana.png`. Use capturas reais da tela da VPS, na mesma resolução e zoom do computador que vai rodar. Não use imagens ilustrativas.
+- Coloque as 4 capturas em `img/swprogramacao/`: `login.png`, `login_edi.png`, `informe_parceiro.png` e `uliana.png`. Use capturas reais da tela da VPS, na mesma resolução e zoom do computador que vai rodar. Não use imagens ilustrativas. As instruções de captura de cada imagem estão em `img/swprogramacao/README.md`.
+- As capturas **não vão para o Git** (ficam só no PC de quem roda, pelo `.gitignore`).
 - Mantenha a área de transferência ativa no RDP (é o padrão do Windows). Os dados são colados, não digitados, para evitar problemas com `@` e outros símbolos.
 - Deixe a janela da VPS visível e não minimizada: a automação enxerga só o que está na tela.
 - Ainda não existe `.exe` para esta parte. Rode pelo Python, como abaixo.
@@ -70,15 +73,17 @@ Este passo abre a VPS e **para quando o programa carrega** (checkpoint). Ainda n
 **Como rodar** (na pasta do projeto):
 
 ```
-python -m swprogramacao --diagnostico   # confere o .rdp e as 4 imagens, sem digitar nada
-python -m swprogramacao                 # roda o passo 1; pede os logins e senhas no terminal
+python -m swprogramacao --salvar-acesso     # guarda o acesso uma vez (DPAPI, no Windows)
+python -m swprogramacao --diagnostico       # confere o .rdp, as 4 imagens e o acesso salvo
+python -m swprogramacao                     # roda o passo 1 até o CHECKPOINT
+python -m swprogramacao --esquecer-acesso   # apaga o acesso salvo
 ```
 
 Com a VPS aberta, o `--diagnostico` mostra onde cada imagem foi encontrada. Se alguma aparecer como "não visível", a captura não corresponde à tela atual.
 
-**Segurança:** logins e senhas são digitados no terminal a cada execução. Não são salvos em arquivo nem aparecem no log. O registro fica em `log_swprogramacao.txt`, que é ignorado pelo Git.
+**Segurança:** o acesso (login do Windows e do EDI) pode ser guardado **uma vez** com `--salvar-acesso`, protegido pela DPAPI do Windows em `%LOCALAPPDATA%\AutomacaoTOTVS\acesso_sw.dpapi`, fora da pasta do projeto. Também pode ser passado por variáveis de ambiente (`SW_WINDOWS_LOGIN`, `SW_WINDOWS_SENHA`, `SW_EDI_LOGIN`, `SW_EDI_SENHA`), com prioridade sobre o arquivo salvo. Se não houver acesso salvo, ele é pedido no terminal. Não há senha em texto puro no código, nos arquivos do projeto ou no log, e nenhuma senha aparece no log. O registro fica em `log_swprogramacao.txt`, que é ignorado pelo Git.
 
-**Se parar:** o terminal e o log dizem em qual etapa parou (login do Windows, login do EDI, ULIANA não encontrada ou tempo esgotado).
+**Se parar:** o terminal e o log dizem em qual etapa parou (imagem faltando, login do Windows, login do EDI, ULIANA não encontrada ou tempo esgotado).
 
 ---
 
@@ -228,13 +233,15 @@ automacao/
 │
 ├── swprogramacao/              PARTE SWPROGRAMAÇÃO (VPS)
 │   ├── __main__.py             Linha de comando: python -m swprogramacao
-│   ├── fluxo.py                Passo 1: logins, ULIANA e checkpoint
+│   ├── fluxo.py                Passo 1: valida as imagens, logins, ULIANA e checkpoint
+│   ├── acessos.py              Acesso da VPS (ambiente/DPAPI), sem senha em texto puro
 │   └── rdp.py                  Acha e abre o SWPROGRAMACAO.rdp
 │
 ├── core/                       Código compartilhado pelas partes
 │   ├── caminhos.py             Pastas do projeto (modo .py e .exe)
 │   ├── telas.py                Ações de tela por imagem (PyAutoGUI)
 │   ├── janelas.py              Validação de janelas do Windows
+│   ├── credenciais.py          Armazenamento DPAPI fora do projeto (acessos)
 │   └── rdp.py                  Procura e abre o SWPROGRAMACAO.rdp da área de trabalho
 │
 ├── tests/                      Testes automatizados
@@ -357,6 +364,7 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
 - SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp` e as 4 imagens; depois, rodar até o `CHECKPOINT`.
+- SWProgramação: sem as 4 capturas em `img/swprogramacao/`, o passo para **antes** de abrir a VPS e diz quais faltam; com `--salvar-acesso` (ou variáveis de ambiente), rodar de novo não deve pedir senha.
 - Importação: ao clicar em START, o log deve mostrar a abertura do `SWPROGRAMACAO.rdp` ANTES da busca pelo DATASUL. Com uma sessão RDP já aberta, nada deve ser reaberto; sem o `.rdp` (e sem sessão aberta), o DATASUL não deve ser executado.
 
 Instale as dependências atualizadas e execute `compilar.bat` novamente para
