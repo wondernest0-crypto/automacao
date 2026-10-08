@@ -11,3 +11,10 @@ venv/
 
 # Icone local (opcional, gerado/colocado a mao)
 assets/
+
+# Log do passo 1 da parte SWProgramação (não versionar)
+log_swprogramacao.txt
+
+# Capturas da VPS (SWProgramação): ficam só no PC de quem roda, fora do Git.
+# O .gitkeep continua versionado para a pasta existir.
+img/swprogramacao/*.png

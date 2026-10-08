@@ -11,8 +11,9 @@ import os
 import subprocess
 import sys
 import threading
-from credenciais_totvs import (carregar_credenciais, salvar_credenciais,
+from totvs.credenciais import (carregar_credenciais, salvar_credenciais,
                                esquecer_credenciais, ErroCredenciais)
+from core.caminhos import DIR_BASE, DIR_DATA, DIR_IMG, DIR_ASSETS
 
 # ========================================
 # CORRIGIR ÍCONE NA BARRA DE TAREFAS (WINDOWS)
@@ -27,19 +28,8 @@ except Exception:
     pass
 
 # ========================================
-# DETECTAR SE ESTÁ RODANDO COMO .EXE OU .PY
+# CAMINHOS (.py e .exe) - vêm de core/caminhos.py (importados acima)
 # ========================================
-def get_base_path():
-    """Retorna o caminho base, seja rodando como .py ou .exe"""
-    if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
-    else:
-        return os.path.dirname(os.path.abspath(__file__))
-
-DIR_BASE = get_base_path()
-DIR_DATA = os.path.join(DIR_BASE, "data")
-DIR_IMG = os.path.join(DIR_BASE, "img")
-DIR_ASSETS = os.path.join(DIR_BASE, "assets")
 
 # Criar pastas se não existirem
 os.makedirs(DIR_DATA, exist_ok=True)
