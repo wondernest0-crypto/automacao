@@ -11,8 +11,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch, call
 
-import janelas_windows
-from credenciais_totvs import ErroCredenciais
+from core import janelas as janelas_windows
+from totvs.credenciais import ErroCredenciais
 
 RAIZ = Path(__file__).resolve().parents[1]
 
@@ -48,7 +48,7 @@ class TestFluxo(unittest.TestCase):
                         WebDriverWait=Mock(), EC=Mock(), By=SimpleNamespace(ID='id'),
                         TimeoutException=type('TimeoutException', (Exception,), {}),
                         NoSuchElementException=type('NoSuchElementException', (Exception,), {}))
-        cls = carregar_classe('automacao_totvs.py', 'AutomacaoTOTVS', self.env)
+        cls = carregar_classe('totvs/automacao.py', 'AutomacaoTOTVS', self.env)
         self.bot = cls.__new__(cls)
         for metodo in ('log', 'log_debug', 'log_aviso', 'log_erro', 'log_sucesso',
                        'esperar', 'mostrar_erro_visivel', 'reabrir_interface', 'minimizar_todas_janelas'):

@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-import credenciais_totvs as cred
+from totvs import credenciais as cred
 
 
 class TestArmazenamento(unittest.TestCase):
