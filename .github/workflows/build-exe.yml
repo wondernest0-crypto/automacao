@@ -1,8 +1,9 @@
 name: Gerar EXE (Windows)
 
 # Gera os .exe do sistema sem precisar de Python na maquina de quem vai usar.
-# Roda a cada push e tambem pode ser disparado manualmente em
-# Actions -> "Gerar EXE (Windows)" -> Run workflow.
+# Roda a cada push, apenas para compilar e conferir. O pacote (artifact e release
+# publica no GitHub) so e gerado quando disparado manualmente em
+# Actions -> "Gerar EXE (Windows)" -> Run workflow. Assim um push nao publica nada.
 
 on:
   push:
@@ -84,6 +85,7 @@ jobs:
           Get-Item 'Sistema_Inventario_Windows.zip' | Select-Object Name, @{n='MB';e={[math]::Round($_.Length/1MB,2)}} | Format-Table -AutoSize
 
       - name: Disponibilizar para download
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: Sistema_Inventario_Windows
@@ -102,6 +104,7 @@ jobs:
           Get-FileHash 'Sistema_Inventario_Windows.zip' -Algorithm SHA256 | Format-List
 
       - name: Publicar no GitHub Releases
+        if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
