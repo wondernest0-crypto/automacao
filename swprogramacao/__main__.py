@@ -1,9 +1,13 @@
 """Linha de comando da parte SWProgramação.
 
     python -m swprogramacao                 roda o passo 1 (abre a VPS até o programa carregar)
-    python -m swprogramacao --diagnostico   confere o .rdp e as imagens na tela atual
+    python -m swprogramacao --diagnostico   confere o .rdp, as imagens na tela e o acesso salvo
+    python -m swprogramacao --salvar-acesso guarda o acesso com DPAPI (uma vez só; pede no terminal)
+    python -m swprogramacao --esquecer-acesso apaga o acesso salvo
 
-Os logins e senhas são pedidos no terminal. Não são salvos nem gravados no log.
+O acesso vem das variáveis de ambiente SW_WINDOWS_LOGIN, SW_WINDOWS_SENHA,
+SW_EDI_LOGIN e SW_EDI_SENHA ou do arquivo protegido por DPAPI; se não houver,
+é pedido no terminal. Senhas não são salvas em texto puro nem aparecem no log.
 """
 import getpass
 import os
@@ -12,7 +16,7 @@ from datetime import datetime
 
 from core import telas
 from core.caminhos import DIR_BASE
-from swprogramacao import fluxo, rdp
+from swprogramacao import acessos, fluxo, rdp
 
 ARQUIVO_LOG = os.path.join(DIR_BASE, 'log_swprogramacao.txt')
 
@@ -34,6 +38,37 @@ def coletar_acesso():
     )
 
 
+def _acesso_completo(acesso):
+    return all([acesso.windows_login, acesso.windows_senha,
+                acesso.edi_login, acesso.edi_senha])
+
+
+def _salvar_acesso():
+    acesso = coletar_acesso()
+    if not _acesso_completo(acesso):
+        print('Preencha todos os campos de acesso. Nada foi salvo.')
+        return 1
+    try:
+        acessos.salvar_acesso(acesso)
+    except acessos.ErroAcesso as erro:
+        print(erro)
+        print('Dica: fora do Windows não dá para salvar; use as variáveis de '
+              'ambiente SW_WINDOWS_LOGIN, SW_WINDOWS_SENHA, SW_EDI_LOGIN e SW_EDI_SENHA.')
+        return 1
+    registrar('Acesso salvo com a proteção do Windows (nenhum valor é exibido).')
+    return 0
+
+
+def _esquecer_acesso():
+    try:
+        acessos.esquecer_acesso()
+    except acessos.ErroAcesso as erro:
+        print(erro)
+        return 1
+    registrar('Acesso salvo apagado.')
+    return 0
+
+
 def diagnostico(tela):
     print('Arquivo SWPROGRAMACAO.rdp:')
     try:
@@ -49,6 +84,10 @@ def diagnostico(tela):
         pos = tela.localizar(caminho)
         situacao = f'visível em {pos.x},{pos.y}' if pos else 'não visível agora'
         print(f'  {nome:20s} {situacao}')
+    status = acessos.indicadores()
+    print('Acesso (sem mostrar valores):')
+    print('  variáveis de ambiente SW_*:', 'completas' if status['ambiente'] else 'não definidas')
+    print('  arquivo DPAPI (acesso_sw.dpapi):', 'salvo' if status['arquivo'] else 'não salvo')
 
 
 def main(argv=None):
@@ -58,20 +97,33 @@ def main(argv=None):
         if '--diagnostico' in argv:
             diagnostico(tela)
             return 0
+        if '--salvar-acesso' in argv:
+            return _salvar_acesso()
+        if '--esquecer-acesso' in argv:
+            return _esquecer_acesso()
         try:
             caminho = rdp.caminho_rdp()
         except rdp.RdpNaoEncontrado as erro:
             registrar(str(erro))
             return 1
-        faltando = [os.path.basename(i) for i in fluxo.IMAGENS if not os.path.isfile(i)]
-        if faltando:
-            registrar('Faltam imagens em img/swprogramacao/: ' + ', '.join(faltando))
+        try:
+            fluxo.validar_imagens(fluxo.IMAGENS)
+        except fluxo.FalhaFluxo as erro:
+            registrar(str(erro))
             return 1
-        acesso = coletar_acesso()
-        if not all([acesso.windows_login, acesso.windows_senha,
-                    acesso.edi_login, acesso.edi_senha]):
-            registrar('Preencha todos os campos de acesso. Nada foi feito.')
+        try:
+            acesso = acessos.carregar_acesso()
+        except acessos.ErroAcesso as erro:
+            registrar(str(erro))
             return 1
+        if acesso is None:
+            acesso = coletar_acesso()
+            if not _acesso_completo(acesso):
+                registrar('Preencha todos os campos de acesso. Nada foi feito.')
+                return 1
+        else:
+            registrar('Acesso carregado (variáveis de ambiente ou DPAPI); '
+                      'nenhum valor é exibido no log.')
         fluxo.executar_ate_carregar(
             tela, acesso, registrar, abrir_rdp=lambda: rdp.abrir_rdp(caminho))
         return 0

@@ -38,6 +38,21 @@ class TestTela(unittest.TestCase):
         with self.assertRaises(OSError):
             telas.Tela().localizar('img.png')
 
+    def test_arquivo_de_imagem_inexistente_levanta_mensagem_clara(self):
+        self.pag.locateCenterOnScreen.side_effect = FileNotFoundError('x')
+        with self.assertRaises(RuntimeError) as contexto:
+            telas.Tela().localizar('img/swprogramacao/login.png')
+        self.assertIn('img/swprogramacao/login.png', str(contexto.exception))
+
+    def test_arquivo_que_nao_e_imagem_levanta_mensagem_clara(self):
+        class UnidentifiedImageError(Exception):
+            """Mesmo nome que o Pillow usa; Tela.localizar identifica pelo nome."""
+
+        self.pag.locateCenterOnScreen.side_effect = UnidentifiedImageError('x')
+        with self.assertRaises(RuntimeError) as contexto:
+            telas.Tela().localizar('img/corrompido.png')
+        self.assertIn('img/corrompido.png', str(contexto.exception))
+
     def test_localizar_usa_a_confianca_configurada(self):
         self.pag.locateCenterOnScreen.return_value = Ponto(1, 2)
         telas.Tela(confianca=0.85).localizar('a.png')

@@ -35,6 +35,9 @@ class TestCli(unittest.TestCase):
         self.imagens_patch = self._iniciar(patch.object(fluxo, 'IMAGENS', tuple(self.imagens)))
         self.executar = self._iniciar(patch.object(fluxo, 'executar_ate_carregar'))
         self.executar.return_value = fluxo.CARREGANDO
+        # Sem acesso salvo: a linha de comando cai no pedido no terminal.
+        self.carregar = self._iniciar(patch.object(
+            cli.acessos, 'carregar_acesso', return_value=None))
 
     def _iniciar(self, patcher):
         mock = patcher.start()
@@ -94,6 +97,29 @@ class TestCli(unittest.TestCase):
         abrir()
         self.abrir_rdp.assert_called_once_with(self.rdp_arquivo)
 
+    def test_acesso_salvo_e_usado_sem_pedir_nada(self):
+        acesso_salvo = fluxo.Acesso('win-salvo', 'S1', 'edi-salvo', 'S2')
+        self.carregar.return_value = acesso_salvo
+
+        codigo, _ = self._rodar([])
+
+        self.assertEqual(codigo, 0)
+        self.input.assert_not_called()
+        self.getpass.assert_not_called()
+        _, acesso_usado, _ = self.executar.call_args.args
+        self.assertIs(acesso_usado, acesso_salvo)
+        self.assertNotIn('S1', self._ler_log())
+        self.assertNotIn('S2', self._ler_log())
+
+    def test_erro_ao_carregar_acesso_para_antes_de_abrir(self):
+        self.carregar.side_effect = cli.acessos.ErroAcesso('acesso salvo corrompido')
+        codigo, _ = self._rodar([])
+        self.assertEqual(codigo, 1)
+        self.input.assert_not_called()
+        self.executar.assert_not_called()
+        self.abrir_rdp.assert_not_called()
+        self.assertIn('corrompido', self._ler_log())
+
     def test_senhas_nunca_vao_para_o_log(self):
         def fluxo_falso(tela, acesso, registrar, abrir_rdp):
             registrar('passo ok')
@@ -110,6 +136,40 @@ class TestCli(unittest.TestCase):
         self.assertEqual(codigo, 1)
         self.assertIn('PARADO: a ULIANA não apareceu', self._ler_log())
 
+    def test_salvar_acesso_pede_e_grava_sem_abrir_a_vps(self):
+        with patch.object(cli.acessos, 'salvar_acesso') as salvar:
+            codigo, _ = self._rodar(['--salvar-acesso'])
+        self.assertEqual(codigo, 0)
+        acesso = salvar.call_args.args[0]
+        self.assertEqual(acesso.windows_login, 'usuario-win')
+        self.assertEqual(acesso.windows_senha, 'SENHA-WIN-FALSA')
+        self.assertEqual(acesso.edi_login, 'usuario-edi')
+        self.assertEqual(acesso.edi_senha, 'SENHA-EDI-FALSA')
+        self.assertNotIn('SENHA', self._ler_log())
+        self.executar.assert_not_called()
+        self.abrir_rdp.assert_not_called()
+
+    def test_salvar_acesso_incompleto_nao_grava(self):
+        self.input.side_effect = ['', 'usuario-edi']
+        with patch.object(cli.acessos, 'salvar_acesso') as salvar:
+            codigo, _ = self._rodar(['--salvar-acesso'])
+        self.assertEqual(codigo, 1)
+        salvar.assert_not_called()
+
+    def test_salvar_acesso_falha_de_protecao_termina_com_erro(self):
+        with patch.object(cli.acessos, 'salvar_acesso',
+                          side_effect=cli.acessos.ErroAcesso('requer Windows')):
+            codigo, _ = self._rodar(['--salvar-acesso'])
+        self.assertEqual(codigo, 1)
+
+    def test_esquecer_acesso_apaga_e_nao_roda_o_fluxo(self):
+        with patch.object(cli.acessos, 'esquecer_acesso') as esquecer:
+            codigo, _ = self._rodar(['--esquecer-acesso'])
+        self.assertEqual(codigo, 0)
+        esquecer.assert_called_once_with()
+        self.executar.assert_not_called()
+        self.abrir_rdp.assert_not_called()
+
     def test_diagnostico_nao_pede_acesso_nem_abre_a_vps(self):
         tela_falsa = MagicMock(name='Tela')
         tela_falsa.localizar.return_value = None
@@ -124,6 +184,8 @@ class TestCli(unittest.TestCase):
         self.abrir_rdp.assert_not_called()
         self.assertIn('login.png', saida)
         self.assertIn('não visível agora', saida)
+        self.assertIn('Acesso (sem mostrar valores)', saida)
+        self.assertIn('SW_*', saida)
 
 
 if __name__ == '__main__':

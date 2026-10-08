@@ -44,6 +44,16 @@ class Tela:
             # Algumas versões do PyAutoGUI levantam ImageNotFoundException em vez de devolver None.
             if type(erro).__name__ == 'ImageNotFoundException':
                 return None
+            # Arquivo de imagem ausente ou ilegível: avisa o caminho, em vez de
+            # estourar com erro de biblioteca (que parece "não achou na tela").
+            if isinstance(erro, FileNotFoundError):
+                raise RuntimeError(
+                    f'Arquivo de imagem não existe: {caminho_imagem}. '
+                    'Coloque a captura no caminho indicado.') from erro
+            if type(erro).__name__ == 'UnidentifiedImageError':
+                raise RuntimeError(
+                    f'O arquivo não é uma imagem válida: {caminho_imagem}. '
+                    'Salve novamente a captura como .png.') from erro
             raise
 
     def clicar_duplo(self, caminho_imagem):

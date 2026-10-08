@@ -3,7 +3,10 @@
 A tela falsa segue um roteiro: as imagens visíveis mudam a cada ENTER.
 O relógio também é falso, então os testes não esperam de verdade.
 """
+import os
+import tempfile
 import unittest
+from unittest.mock import patch
 
 from swprogramacao import fluxo
 from swprogramacao.fluxo import (
@@ -17,6 +20,8 @@ ACESSO = Acesso(
     edi_login='usuario-edi',
     edi_senha=SENHA_EDI,
 )
+
+NOMES_IMAGENS = ('login.png', 'login_edi.png', 'informe_parceiro.png', 'uliana.png')
 
 
 class TelaFalsa:
@@ -62,6 +67,13 @@ def executar(tela, acesso=ACESSO):
 
 
 class TestPassoUm(unittest.TestCase):
+    def setUp(self):
+        # As capturas reais ficam só no PC local (gitignore): o teste não pode
+        # depender delas existirem no repositório.
+        patcher = patch.object(fluxo, 'validar_imagens', lambda imagens=None: None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_caminho_feliz_para_no_checkpoint(self):
         tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
 
@@ -95,6 +107,17 @@ class TestPassoUm(unittest.TestCase):
         self.assertNotIn(('colar', 'usuario-win'), tela.acoes)
         self.assertIn(('colar', 'usuario-edi'), tela.acoes)
 
+    def test_ambos_logins_visiveis_preenche_windows_primeiro(self):
+        # As duas telas de login visíveis no mesmo ciclo: o Windows vem primeiro.
+        tela = TelaFalsa({IMG_LOGIN, IMG_LOGIN_EDI}, [])
+
+        with self.assertRaises(FalhaFluxo):
+            executar(tela)
+
+        primeiro_win = tela.acoes.index(('colar', 'usuario-win'))
+        primeiro_edi = tela.acoes.index(('colar', 'usuario-edi'))
+        self.assertLess(primeiro_win, primeiro_edi)
+
     def test_senha_errada_nao_redigita_e_para_pelo_prazo(self):
         # O ENTER não muda a tela: como se a senha estivesse errada.
         tela = TelaFalsa({IMG_LOGIN}, [])
@@ -126,6 +149,18 @@ class TestPassoUm(unittest.TestCase):
         self.assertIn('tempo limite', str(contexto.exception))
         self.assertEqual([a for a in tela.acoes if a[0] == 'colar'], [])
 
+    def test_enquanto_espera_registra_que_procura_todas_as_imagens(self):
+        tela = TelaFalsa(set(), [])
+        mensagens = []
+
+        with self.assertRaises(FalhaFluxo):
+            fluxo.executar_ate_carregar(tela, ACESSO, mensagens.append, lambda: None)
+
+        varreduras = [m for m in mensagens if 'Procurando na tela' in m]
+        self.assertTrue(varreduras, 'deve registrar que segue procurando')
+        for nome in ('login.png', 'login_edi.png', 'informe_parceiro.png'):
+            self.assertIn(nome, varreduras[0])
+
     def test_segredos_nao_aparecem_em_log_nem_em_erro_nem_em_repr(self):
         tela_ok = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
         _, mensagens_ok, _ = executar(tela_ok)
@@ -139,6 +174,43 @@ class TestPassoUm(unittest.TestCase):
         for segredo in (SENHA_WIN, SENHA_EDI):
             self.assertNotIn(segredo, texto)
         self.assertIn('usuario-win', repr(ACESSO), 'o login pode aparecer, a senha não')
+
+
+class TestValidarImagens(unittest.TestCase):
+    def test_todas_presentes_nao_levanta(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            imagens = tuple(os.path.join(pasta, nome) for nome in NOMES_IMAGENS)
+            for caminho in imagens:
+                open(caminho, 'w').close()
+            self.assertIsNone(fluxo.validar_imagens(imagens))
+
+    def test_lista_somente_o_que_falta(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            imagens = tuple(os.path.join(pasta, nome) for nome in NOMES_IMAGENS)
+            for caminho in imagens[1:]:
+                open(caminho, 'w').close()
+            with self.assertRaises(FalhaFluxo) as contexto:
+                fluxo.validar_imagens(imagens)
+        mensagem = str(contexto.exception)
+        self.assertIn('login.png', mensagem)
+        self.assertTrue(mensagem.startswith('Faltam imagens em img/swprogramacao/:'),
+                        f'a mensagem deve mostrar a pasta correta: {mensagem}')
+        self.assertNotIn('uliana.png', mensagem)
+
+    def test_imagem_faltando_para_antes_de_abrir_a_vps(self):
+        with tempfile.TemporaryDirectory() as pasta:
+            imagens = tuple(os.path.join(pasta, nome) for nome in NOMES_IMAGENS)
+            for caminho in imagens[1:]:
+                open(caminho, 'w').close()
+            with patch.object(fluxo, 'IMAGENS', imagens):
+                tela = TelaFalsa(set(), [])
+                abertura = []
+                with self.assertRaises(FalhaFluxo) as contexto:
+                    fluxo.executar_ate_carregar(
+                        tela, ACESSO, lambda m: None, lambda: abertura.append(1))
+        self.assertIn('login.png', str(contexto.exception))
+        self.assertEqual(abertura, [], 'não deve abrir a VPS com imagem faltando')
+        self.assertEqual([a for a in tela.acoes if a[0] == 'colar'], [])
 
 
 if __name__ == '__main__':

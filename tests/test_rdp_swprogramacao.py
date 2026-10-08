@@ -45,6 +45,31 @@ class TestCaminhoRdp(unittest.TestCase):
         startfile.assert_called_once_with('C:/Users/x/Desktop/SWPROGRAMACAO.rdp')
 
 
+class TestDesktopConhecido(unittest.TestCase):
+    """core/rdp.py: a pasta real da área de trabalho (API do Windows) vai primeiro."""
+
+    def test_pasta_conhecida_e_a_primeira_candidata(self):
+        with patch.object(rdp_core, '_desktop_conhecido', return_value='/real/Desktop'):
+            candidatos = rdp_core.caminhos_candidatos('X.rdp', '/home/u')
+        self.assertEqual(candidatos[0], os.path.join('/real/Desktop', 'X.rdp'))
+        self.assertEqual(len(candidatos), 5)
+
+    def test_sem_pasta_conhecida_mantem_os_caminhos_padrao(self):
+        with patch.object(rdp_core, '_desktop_conhecido', return_value=None):
+            candidatos = rdp_core.caminhos_candidatos('X.rdp', '/home/u')
+        self.assertEqual(len(candidatos), 4)
+
+    def test_caminho_repetido_nao_aparece_duas_vezes(self):
+        with patch.object(rdp_core, '_desktop_conhecido', return_value='/home/u/Desktop'):
+            candidatos = rdp_core.caminhos_candidatos('X.rdp', '/home/u')
+        self.assertEqual(len(candidatos), 4)
+
+    def test_falha_na_api_nao_quebra_a_busca(self):
+        with patch.object(rdp_core, '_desktop_conhecido', return_value=None):
+            candidatos = rdp_core.caminhos_candidatos('X.rdp', '/home/u')
+        self.assertTrue(all(candidatos))
+
+
 class TestRdpCompartilhado(unittest.TestCase):
     """core/rdp.py: a mesma busca na área de trabalho, paramétrica pelo nome."""
 
