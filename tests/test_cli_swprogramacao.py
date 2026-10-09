@@ -33,8 +33,8 @@ class TestCli(unittest.TestCase):
             rdp, 'caminho_rdp', return_value=self.rdp_arquivo))
         self.abrir_rdp = self._iniciar(patch.object(rdp, 'abrir_rdp'))
         self.imagens_patch = self._iniciar(patch.object(fluxo, 'IMAGENS', tuple(self.imagens)))
-        self.executar = self._iniciar(patch.object(fluxo, 'executar_ate_carregar'))
-        self.executar.return_value = fluxo.CARREGANDO
+        self.executar = self._iniciar(patch.object(fluxo, 'executar_ate_uliana'))
+        self.executar.return_value = fluxo.ENCONTRADA
         # Sem acesso salvo: a linha de comando cai no pedido no terminal.
         self.carregar = self._iniciar(patch.object(
             cli.acessos, 'carregar_acesso', return_value=None))
@@ -123,7 +123,7 @@ class TestCli(unittest.TestCase):
     def test_senhas_nunca_vao_para_o_log(self):
         def fluxo_falso(tela, acesso, registrar, abrir_rdp):
             registrar('passo ok')
-            return fluxo.CARREGANDO
+            return fluxo.ENCONTRADA
         self.executar.side_effect = fluxo_falso
         self._rodar([])
         log = self._ler_log()

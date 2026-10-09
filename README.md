@@ -48,19 +48,18 @@ No fluxo de importação, o START já respeita essa ordem: **abre o `SWPROGRAMAC
 
 ## 🖥️ SWProgramação (VPS): passo 1
 
-Este passo abre a VPS e **para quando o programa carrega** (checkpoint). Ainda não faz configurações nem importação de pedidos.
+Este passo abre a VPS, faz os dois logins e **procura a ULIANA na lista de parceiros**. Quando a ULIANA é encontrada, o passo termina (não clica nela). Ainda não faz configurações nem importação de pedidos.
 
 **O que ele faz, em ordem:**
 
 1. Confere se as 4 capturas existem em `img/swprogramacao/`. Se faltar alguma, **para antes de abrir a VPS** e diz quais faltam (imagem ausente é arquivo ausente, não "não achei na tela").
 2. Abre o `SWPROGRAMACAO.rdp` da área de trabalho (igual a dar dois cliques). A busca cobre a pasta real da área de trabalho do Windows (API de pastas conhecidas), `Desktop`, `Área de Trabalho` e as versões dentro do OneDrive.
 3. A cada ciclo, **procura TODAS as imagens na tela antes de decidir o próximo passo**:
-   - `login.png` (login do Windows): usuário, TAB, senha, ENTER;
-   - `login_edi.png` (login do EDI, "Usuário:"): usuário, TAB, senha, ENTER;
+   - `login.png` (login do Windows, com o campo de usuário já em foco): usuário, TAB, senha, ENTER, e espera 3 s;
+   - `login_edi.png` (login do EDI, "Usuário:"): usuário, TAB, senha, ENTER, e espera **4 s** (`ESPERA_APOS_ENTER_EDI`);
    - `informe_parceiro.png`: é o sinal de que os logins terminaram.
    Cada login é digitado **uma vez**. Se a senha estiver errada, o passo para com erro e não tenta de novo.
-4. Quando aparece `informe_parceiro.png`, dá duplo clique em `uliana.png`.
-5. Espera o programa carregar e **para**. O log registra `CHECKPOINT`.
+4. Com `informe_parceiro.png` na tela, **procura `uliana.png`**. Achou: registra "ULIANA encontrada" e **termina** (não clica). Se não achar em 15 s, para com erro.
 
 **Antes de rodar:**
 
@@ -75,7 +74,7 @@ Este passo abre a VPS e **para quando o programa carrega** (checkpoint). Ainda n
 ```
 python -m swprogramacao --salvar-acesso     # guarda o acesso uma vez (DPAPI, no Windows)
 python -m swprogramacao --diagnostico       # confere o .rdp, as 4 imagens e o acesso salvo
-python -m swprogramacao                     # roda o passo 1 até o CHECKPOINT
+python -m swprogramacao                     # roda o passo 1 até achar a ULIANA
 python -m swprogramacao --esquecer-acesso   # apaga o acesso salvo
 ```
 
@@ -363,7 +362,7 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 - Testar **Esquecer acesso** e confirmar que a senha não volta ao reabrir.
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
-- SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp` e as 4 imagens; depois, rodar até o `CHECKPOINT`.
+- SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp` e as 4 imagens; depois, rodar até achar a ULIANA (`ULIANA encontrada` no log).
 - SWProgramação: sem as 4 capturas em `img/swprogramacao/`, o passo para **antes** de abrir a VPS e diz quais faltam; com `--salvar-acesso` (ou variáveis de ambiente), rodar de novo não deve pedir senha.
 - Importação: ao clicar em START, o log deve mostrar a abertura do `SWPROGRAMACAO.rdp` ANTES da busca pelo DATASUL. Com uma sessão RDP já aberta, nada deve ser reaberto; sem o `.rdp` (e sem sessão aberta), o DATASUL não deve ser executado.
 

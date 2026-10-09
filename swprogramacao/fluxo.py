@@ -1,4 +1,4 @@
-"""Parte SWProgramação, passo 1: abrir a VPS e parar quando o programa carregar.
+"""Parte SWProgramação, passo 1: abrir a VPS, fazer os logins e procurar a ULIANA.
 
 Sequência combinada:
   1. Confere se as 4 capturas existem em img/swprogramacao/ (falha antes de
@@ -6,11 +6,13 @@ Sequência combinada:
   2. Abre o SWPROGRAMACAO.rdp (igual a dar dois cliques nele).
   3. A cada ciclo, PROCURA TODAS AS IMAGENS na tela antes de decidir o próximo
      passo:
-       login.png      -> login do Windows: usuário, TAB, senha, ENTER
-       login_edi.png  -> login do EDI: usuário, TAB, senha, ENTER
+       login.png            -> login do Windows: usuário, TAB, senha, ENTER,
+                               espera ESPERA_APOS_ENTER_WINDOWS
+       login_edi.png        -> login do EDI: usuário, TAB, senha, ENTER,
+                               espera ESPERA_APOS_ENTER_EDI (4 s)
        informe_parceiro.png -> chegou na tela de parceiros: sai do loop
-  4. Quando aparece informe_parceiro.png, dá duplo clique em uliana.png.
-  5. Espera o programa carregar e PARA (checkpoint).
+  4. Com informe_parceiro.png na tela, PROCURA uliana.png. Achou: registra e
+     termina (não clica em nada). Não achou no prazo: para com erro.
 
 Cada login é digitado uma vez. Se a tela não avançar (por exemplo, senha
 errada), o passo para com erro em vez de tentar de novo, para não bloquear
@@ -32,10 +34,10 @@ TIMEOUT_ACESSO = 300      # s: tempo máximo para chegar à tela de parceiros
 TIMEOUT_ULIANA = 15       # s: tempo para a ULIANA aparecer na lista
 INTERVALO = 1.0           # s: pausa entre as verificações da tela
 INTERVALO_LOG = 30        # s: de quanto em quanto tempo registra que segue procurando
-ESPERA_APOS_ENTER = 3.0   # s: tempo para a tela trocar depois do ENTER
-TEMPO_CARREGAMENTO = 30   # s: espera o programa carregar após o duplo clique
+ESPERA_APOS_ENTER_WINDOWS = 3.0  # s: tempo para a tela trocar depois do ENTER do Windows
+ESPERA_APOS_ENTER_EDI = 4.0      # s: tempo para carregar depois do ENTER do EDI
 
-CARREGANDO = 'carregando'
+ENCONTRADA = 'uliana_encontrada'
 
 
 class FalhaFluxo(Exception):
@@ -74,16 +76,17 @@ def _varrer(tela):
             for imagem in (IMG_LOGIN, IMG_LOGIN_EDI, IMG_INFORME)}
 
 
-def _preencher(tela, login, senha):
+def _preencher(tela, login, senha, espera):
+    """Campo de usuário já está com o foco: digita usuário, TAB, senha, ENTER e espera."""
     tela.colar(login)
     tela.tecla('tab')
     tela.colar(senha)
     tela.tecla('enter')
-    tela.esperar(ESPERA_APOS_ENTER)
+    tela.esperar(espera)
 
 
-def executar_ate_carregar(tela, acesso, registrar, abrir_rdp):
-    """Roda o passo 1. Devolve CARREGANDO ou levanta FalhaFluxo."""
+def executar_ate_uliana(tela, acesso, registrar, abrir_rdp):
+    """Roda o passo 1. Devolve ENCONTRADA ou levanta FalhaFluxo."""
     validar_imagens()
     abrir_rdp()
     registrar('SWPROGRAMACAO.rdp aberto. Aguardando a tela de login da VPS...')
@@ -98,12 +101,13 @@ def executar_ate_carregar(tela, acesso, registrar, abrir_rdp):
             break
         if not preenchido['windows'] and visiveis[IMG_LOGIN] is not None:
             registrar('Login do Windows encontrado (login.png): preenchendo usuário e senha.')
-            _preencher(tela, acesso.windows_login, acesso.windows_senha)
+            _preencher(tela, acesso.windows_login, acesso.windows_senha,
+                       ESPERA_APOS_ENTER_WINDOWS)
             preenchido['windows'] = True
             continue
         if not preenchido['edi'] and visiveis[IMG_LOGIN_EDI] is not None:
             registrar('Login do EDI encontrado (login_edi.png): preenchendo usuário e senha.')
-            _preencher(tela, acesso.edi_login, acesso.edi_senha)
+            _preencher(tela, acesso.edi_login, acesso.edi_senha, ESPERA_APOS_ENTER_EDI)
             preenchido['edi'] = True
             continue
         if tela.agora() > prazo:
@@ -117,13 +121,11 @@ def executar_ate_carregar(tela, acesso, registrar, abrir_rdp):
         tela.esperar(INTERVALO)
     registrar('Tela de parceiros encontrada (informe_parceiro.png).')
 
+    # Só procura a ULIANA: não clica nela. Achou, o passo termina.
     prazo_uliana = tela.agora() + TIMEOUT_ULIANA
-    while not tela.clicar_duplo(IMG_ULIANA):
+    while tela.localizar(IMG_ULIANA) is None:
         if tela.agora() > prazo_uliana:
             raise FalhaFluxo('a ULIANA (uliana.png) não apareceu na lista de parceiros.')
         tela.esperar(INTERVALO)
-    registrar('Duplo clique em ULIANA. Aguardando o programa carregar...')
-
-    tela.esperar(TEMPO_CARREGAMENTO)
-    registrar('CHECKPOINT: programa carregando. Parei aqui, como combinado.')
-    return CARREGANDO
+    registrar('ULIANA encontrada (uliana.png). Fim do passo.')
+    return ENCONTRADA
