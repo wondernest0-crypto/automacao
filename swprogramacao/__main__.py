@@ -1,6 +1,6 @@
 """Linha de comando da parte SWProgramação.
 
-    python -m swprogramacao                 roda o passo 1 (abre a VPS até o programa carregar)
+    python -m swprogramacao                 roda o passo 1 (abre a VPS, faz os logins e acha a ULIANA)
     python -m swprogramacao --diagnostico   confere o .rdp, as imagens na tela e o acesso salvo
     python -m swprogramacao --salvar-acesso guarda o acesso com DPAPI (uma vez só; pede no terminal)
     python -m swprogramacao --esquecer-acesso apaga o acesso salvo
@@ -124,7 +124,7 @@ def main(argv=None):
         else:
             registrar('Acesso carregado (variáveis de ambiente ou DPAPI); '
                       'nenhum valor é exibido no log.')
-        fluxo.executar_ate_carregar(
+        fluxo.executar_ate_uliana(
             tela, acesso, registrar, abrir_rdp=lambda: rdp.abrir_rdp(caminho))
         return 0
     except fluxo.FalhaFluxo as erro:

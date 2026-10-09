@@ -2,6 +2,8 @@
 
 A tela falsa segue um roteiro: as imagens visíveis mudam a cada ENTER.
 O relógio também é falso, então os testes não esperam de verdade.
+Sequência testada: login do Windows (3 s), login do EDI (4 s), tela de
+parceiros, procurar a ULIANA e terminar (sem clicar nela).
 """
 import os
 import tempfile
@@ -43,11 +45,9 @@ class TelaFalsa:
     def localizar(self, caminho):
         return (10, 20) if caminho in self.visiveis else None
 
-    def clicar_duplo(self, caminho):
-        if caminho in self.visiveis:
-            self.acoes.append(('duplo', caminho))
-            return True
-        return False
+    def clicar_duplo(self, caminho):  # o passo 1 não deve usar isto
+        self.acoes.append(('duplo', caminho))
+        return caminho in self.visiveis
 
     def colar(self, texto):
         self.acoes.append(('colar', texto))
@@ -61,7 +61,7 @@ class TelaFalsa:
 def executar(tela, acesso=ACESSO):
     mensagens = []
     abertura = []
-    resultado = fluxo.executar_ate_carregar(
+    resultado = fluxo.executar_ate_uliana(
         tela, acesso, mensagens.append, lambda: abertura.append(1))
     return resultado, mensagens, abertura
 
@@ -74,36 +74,41 @@ class TestPassoUm(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def test_caminho_feliz_para_no_checkpoint(self):
+    def test_caminho_feliz_procura_uliana_e_termina(self):
         tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
 
         resultado, mensagens, abertura = executar(tela)
 
-        self.assertEqual(resultado, fluxo.CARREGANDO)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
         self.assertEqual(abertura, [1], 'o .rdp deve ser aberto uma vez')
         self.assertEqual(tela.acoes, [
             ('colar', 'usuario-win'), ('tecla', 'tab'),
-            ('colar', SENHA_WIN), ('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER),
+            ('colar', SENHA_WIN), ('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER_WINDOWS),
             ('colar', 'usuario-edi'), ('tecla', 'tab'),
-            ('colar', SENHA_EDI), ('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER),
-            ('duplo', IMG_ULIANA), ('esperar', fluxo.TEMPO_CARREGAMENTO),
+            ('colar', SENHA_EDI), ('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER_EDI),
         ])
-        self.assertTrue(any('CHECKPOINT' in m for m in mensagens))
+        self.assertTrue(any('ULIANA encontrada' in m for m in mensagens))
 
-    def test_nada_e_digitado_depois_do_checkpoint(self):
+    def test_espera_do_edi_e_de_4_segundos(self):
+        self.assertEqual(fluxo.ESPERA_APOS_ENTER_EDI, 4.0)
+        tela = TelaFalsa({IMG_LOGIN_EDI}, [{IMG_INFORME, IMG_ULIANA}])
+        executar(tela)
+        indice_enter = tela.acoes.index(('tecla', 'enter'))
+        self.assertEqual(tela.acoes[indice_enter + 1], ('esperar', 4.0))
+
+    def test_nada_e_clicado_nem_digitado_depois_de_achar_a_uliana(self):
+        # Só procura: não há duplo clique, e o último ato é o ENTER do EDI.
         tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
         executar(tela)
-        self.assertEqual(tela.acoes[-1], ('esperar', fluxo.TEMPO_CARREGAMENTO))
-        indice_duplo = tela.acoes.index(('duplo', IMG_ULIANA))
-        depois = tela.acoes[indice_duplo + 1:]
-        self.assertFalse([a for a in depois if a[0] in ('colar', 'tecla', 'duplo')])
+        self.assertFalse([a for a in tela.acoes if a[0] == 'duplo'])
+        self.assertEqual(tela.acoes[-2:], [('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER_EDI)])
 
     def test_login_do_edi_direto_nao_digita_o_windows(self):
         tela = TelaFalsa({IMG_LOGIN_EDI}, [{IMG_INFORME, IMG_ULIANA}])
 
         resultado, _, _ = executar(tela)
 
-        self.assertEqual(resultado, fluxo.CARREGANDO)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
         self.assertNotIn(('colar', 'usuario-win'), tela.acoes)
         self.assertIn(('colar', 'usuario-edi'), tela.acoes)
 
@@ -140,6 +145,21 @@ class TestPassoUm(unittest.TestCase):
         self.assertIn('ULIANA', str(contexto.exception))
         self.assertFalse([a for a in tela.acoes if a[0] == 'duplo'])
 
+    def test_uliana_que_aparece_depois_ainda_e_encontrada(self):
+        # A ULIANA demora um pouco: o passo espera e termina quando ela aparece.
+        class TelaUlianaTardia(TelaFalsa):
+            def localizar(self, caminho):
+                if caminho == IMG_ULIANA:
+                    self.procuras = getattr(self, 'procuras', 0) + 1
+                    return (10, 20) if self.procuras >= 3 else None
+                return super().localizar(caminho)
+
+        tela = TelaUlianaTardia({IMG_LOGIN_EDI, IMG_INFORME}, [])
+        resultado, _, _ = executar(tela)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+        self.assertEqual(tela.procuras, 3)
+        self.assertFalse([a for a in tela.acoes if a[0] == 'duplo'])
+
     def test_nada_visivel_estoura_prazo_sem_digitar_nada(self):
         tela = TelaFalsa(set(), [])
 
@@ -154,7 +174,7 @@ class TestPassoUm(unittest.TestCase):
         mensagens = []
 
         with self.assertRaises(FalhaFluxo):
-            fluxo.executar_ate_carregar(tela, ACESSO, mensagens.append, lambda: None)
+            fluxo.executar_ate_uliana(tela, ACESSO, mensagens.append, lambda: None)
 
         varreduras = [m for m in mensagens if 'Procurando na tela' in m]
         self.assertTrue(varreduras, 'deve registrar que segue procurando')
@@ -206,7 +226,7 @@ class TestValidarImagens(unittest.TestCase):
                 tela = TelaFalsa(set(), [])
                 abertura = []
                 with self.assertRaises(FalhaFluxo) as contexto:
-                    fluxo.executar_ate_carregar(
+                    fluxo.executar_ate_uliana(
                         tela, ACESSO, lambda m: None, lambda: abertura.append(1))
         self.assertIn('login.png', str(contexto.exception))
         self.assertEqual(abertura, [], 'não deve abrir a VPS com imagem faltando')
