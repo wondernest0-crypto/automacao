@@ -18,7 +18,7 @@ from datetime import datetime
 
 from core import janelas, telas
 from core.caminhos import DIR_BASE
-from swprogramacao import acessos, fluxo, rdp
+from swprogramacao import acessos, execucao, fluxo, rdp
 
 ARQUIVO_LOG = os.path.join(DIR_BASE, 'log_swprogramacao.txt')
 
@@ -38,11 +38,6 @@ def coletar_acesso():
         edi_login=input('  Usuário do EDI: ').strip(),
         edi_senha=getpass.getpass('  Senha do EDI: '),
     )
-
-
-def _acesso_completo(acesso):
-    return all([acesso.windows_login, acesso.windows_senha,
-                acesso.edi_login, acesso.edi_senha])
 
 
 def _ler_confianca_minima(argv):
@@ -65,7 +60,8 @@ def _ler_confianca_minima(argv):
 
 def _salvar_acesso():
     acesso = coletar_acesso()
-    if not _acesso_completo(acesso):
+    if not all([acesso.windows_login, acesso.windows_senha,
+                acesso.edi_login, acesso.edi_senha]):
         print('Preencha todos os campos de acesso. Nada foi salvo.')
         return 1
     try:
@@ -161,32 +157,9 @@ def main(argv=None):
             return _salvar_acesso()
         if '--esquecer-acesso' in argv:
             return _esquecer_acesso()
-        try:
-            caminho = rdp.caminho_rdp()
-        except rdp.RdpNaoEncontrado as erro:
-            registrar(str(erro))
-            return 1
-        try:
-            fluxo.validar_imagens(fluxo.IMAGENS)
-        except fluxo.FalhaFluxo as erro:
-            registrar(str(erro))
-            return 1
-        try:
-            acesso = acessos.carregar_acesso()
-        except acessos.ErroAcesso as erro:
-            registrar(str(erro))
-            return 1
-        if acesso is None:
-            acesso = coletar_acesso()
-            if not _acesso_completo(acesso):
-                registrar('Preencha todos os campos de acesso. Nada foi feito.')
-                return 1
-        else:
-            registrar('Acesso carregado (variáveis de ambiente ou DPAPI); '
-                      'nenhum valor é exibido no log.')
-        fluxo.executar_ate_uliana(
-            tela, acesso, registrar, abrir_rdp=lambda: rdp.abrir_rdp(caminho),
-            preparar_vps=lambda: fluxo.trazer_vps_para_frente(tela, registrar))
+        # Mesmo procedimento do START (orquestrador.py), aqui com terminal:
+        # se não houver acesso salvo, ele é pedido.
+        execucao.executar_passo_um(registrar, pedir_acesso=coletar_acesso, tela=tela)
         return 0
     except fluxo.FalhaFluxo as erro:
         registrar(f'PARADO: {erro}')

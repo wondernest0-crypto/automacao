@@ -9,6 +9,13 @@ roda a automação mudar.
 > As 4 capturas ainda não estão no repositório. Quem já tem os arquivos no PC
 > precisa adicioná-los uma vez: `git add img/swprogramacao/*.png`.
 
+## Ordem do procedimento
+
+Estas 4 capturas são a **primeira etapa** da sequência do START. O DATASUL só é
+executado depois que ela termina (a ordem fica em `orquestrador.py`, na raiz) —
+e, enquanto este procedimento estiver em construção, a sequência para na ULIANA e o
+DATASUL não é chamado.
+
 ## O que capturar (4 arquivos, nomes exatos)
 
 | Arquivo | O que é | Dica de captura |
