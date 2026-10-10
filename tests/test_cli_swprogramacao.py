@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from swprogramacao import __main__ as cli
@@ -121,7 +122,7 @@ class TestCli(unittest.TestCase):
         self.assertIn('corrompido', self._ler_log())
 
     def test_senhas_nunca_vao_para_o_log(self):
-        def fluxo_falso(tela, acesso, registrar, abrir_rdp):
+        def fluxo_falso(tela, acesso, registrar, abrir_rdp, preparar_vps=None):
             registrar('passo ok')
             return fluxo.ENCONTRADA
         self.executar.side_effect = fluxo_falso
@@ -186,6 +187,119 @@ class TestCli(unittest.TestCase):
         self.assertIn('não visível agora', saida)
         self.assertIn('Acesso (sem mostrar valores)', saida)
         self.assertIn('SW_*', saida)
+
+    def _tela_de_diagnostico(self, **atributos):
+        tela = MagicMock(name='Tela')
+        tela.localizar.return_value = None
+        tela.confianca = 0.9
+        tela.confianca_minima = 0.6
+        tela.ultima_confianca = None
+        tela.tamanho_tela.return_value = (1920, 1080)
+        tela.tamanho_imagem.return_value = (812, 344)
+        tela.descricao_tela.return_value = 'resolução 1920x1080; escala 150%; DPI aware'
+        for nome, valor in atributos.items():
+            setattr(tela, nome, valor)
+        self._iniciar(patch.object(cli.telas, 'Tela', return_value=tela))
+        return tela
+
+    def test_diagnostico_mostra_pasta_resolucao_e_tamanho_das_capturas(self):
+        self._tela_de_diagnostico()
+        self._iniciar(patch.object(cli.janelas, 'janelas_por_titulo', return_value=[]))
+
+        codigo, saida = self._rodar(['--diagnostico'])
+
+        self.assertEqual(codigo, 0)
+        self.assertIn(fluxo.PASTA_IMAGENS, saida)
+        self.assertIn('resolução 1920x1080', saida)
+        self.assertIn('812x344 px', saida)
+        self.assertIn('de 0.9 até 0.6 de confiança', saida)
+        self.assertIn('janela da VPS: não está aberta', saida)
+
+    def test_diagnostico_avisa_quando_a_captura_e_maior_que_a_tela(self):
+        tela = self._tela_de_diagnostico()
+        tela.tamanho_imagem.return_value = (2400, 1300)
+        self._iniciar(patch.object(cli.janelas, 'janelas_por_titulo', return_value=[]))
+
+        _, saida = self._rodar(['--diagnostico'])
+
+        self.assertIn('MAIOR que a tela: nunca será encontrada', saida)
+
+    def test_diagnostico_mostra_a_janela_da_vps_aberta(self):
+        self._tela_de_diagnostico()
+        janela = MagicMock(name='janela')
+        janela.title = 'Conexão de Área de Trabalho Remota - VPS'
+        self._iniciar(patch.object(cli.janelas, 'janelas_por_titulo', return_value=[janela]))
+
+        _, saida = self._rodar(['--diagnostico'])
+
+        self.assertIn('janela da VPS: Conexão de Área de Trabalho Remota - VPS', saida)
+
+    def test_diagnostico_mostra_a_confianca_em_que_a_imagem_casou(self):
+        self._tela_de_diagnostico(
+            ultima_confianca=0.75, localizar=lambda caminho: SimpleNamespace(x=10, y=20))
+
+        _, saida = self._rodar(['--diagnostico'])
+
+        self.assertIn('visível em 10,20 (confiança 0.75)', saida)
+
+    def test_fluxo_recebe_preparar_vps_para_trazer_a_vps_para_frente(self):
+        codigo, _ = self._rodar([])
+        self.assertEqual(codigo, 0)
+        preparar = self.executar.call_args.kwargs['preparar_vps']
+        self.assertTrue(callable(preparar))
+        with patch.object(fluxo, 'trazer_vps_para_frente', return_value=True) as trazer:
+            preparar()
+        trazer.assert_called_once()
+
+
+class TestConfiancaMinima(unittest.TestCase):
+    """--confianca-minima é a alavanca para uma captura que só casa frouxa."""
+
+    @staticmethod
+    def _silencioso(argv):
+        saida = io.StringIO()
+        with redirect_stdout(saida):
+            return cli.main(argv)
+
+    def test_numero_valido_vai_para_a_tela(self):
+        with patch.object(cli.telas, 'Tela') as criar:
+            self._silencioso(['--confianca-minima', '0.7', '--diagnostico'])
+        self.assertEqual(criar.call_args.kwargs, {'confianca_minima': 0.7})
+
+    def test_padrao_e_a_minima_do_modulo(self):
+        with patch.object(cli.telas, 'Tela') as criar:
+            self._silencioso(['--diagnostico'])
+        self.assertEqual(criar.call_args.kwargs,
+                         {'confianca_minima': cli.telas.CONFIANCA_MINIMA})
+
+    def casos_invalidos(self):
+        return {
+            'sem número': ['--confianca-minima'],
+            'não é número': ['--confianca-minima', 'abc'],
+            'acima de 1': ['--confianca-minima', '1.5'],
+            'zero': ['--confianca-minima', '0'],
+            'negativo': ['--confianca-minima', '-0.2'],
+        }
+
+    def test_valor_invalido_para_sem_abrir_a_vps(self):
+        for nome, argv in self.casos_invalidos().items():
+            with self.subTest(nome):
+                saida = io.StringIO()
+                with redirect_stdout(saida):
+                    codigo = cli.main(argv)
+                self.assertEqual(codigo, 1)
+                self.assertIn('--confianca-minima', saida.getvalue())
+
+    def test_valor_invalido_nem_cria_a_tela(self):
+        with patch.object(cli.telas, 'Tela') as criar:
+            self._silencioso(['--confianca-minima', 'abc'])
+        criar.assert_not_called()
+
+    def test_limite_um_e_aceito(self):
+        with patch.object(cli.telas, 'Tela') as criar:
+            codigo = self._silencioso(['--confianca-minima', '1', '--diagnostico'])
+        self.assertEqual(codigo, 0)
+        self.assertEqual(criar.call_args.kwargs, {'confianca_minima': 1.0})
 
 
 if __name__ == '__main__':

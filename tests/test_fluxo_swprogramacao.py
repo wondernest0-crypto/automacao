@@ -8,7 +8,7 @@ parceiros, procurar a ULIANA e terminar (sem clicar nela).
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from swprogramacao import fluxo
 from swprogramacao.fluxo import (
@@ -231,6 +231,137 @@ class TestValidarImagens(unittest.TestCase):
         self.assertIn('login.png', str(contexto.exception))
         self.assertEqual(abertura, [], 'não deve abrir a VPS com imagem faltando')
         self.assertEqual([a for a in tela.acoes if a[0] == 'colar'], [])
+
+
+class TestTrazerVpsParaFrente(unittest.TestCase):
+    """A busca por imagem só enxerga o que está visível na tela."""
+
+    def test_acha_a_janela_e_traz_para_o_primeiro_plano(self):
+        tela = TelaFalsa(set(), [])
+        janela = MagicMock(name='janela', title='Conexão de Área de Trabalho Remota - VPS')
+        mensagens = []
+
+        with patch.object(fluxo.janelas, 'janelas_por_titulo', return_value=[janela]), \
+                patch.object(fluxo.janelas, 'trazer_para_frente', return_value=True) as trazer:
+            resultado = fluxo.trazer_vps_para_frente(tela, mensagens.append)
+
+        self.assertTrue(resultado)
+        trazer.assert_called_once_with(janela)
+        self.assertTrue(any('primeiro plano' in m for m in mensagens), mensagens)
+
+    def test_janela_achada_mas_sem_foco_avisa_sem_estourar(self):
+        tela = TelaFalsa(set(), [])
+        janela = MagicMock(name='janela', title='VPS')
+        mensagens = []
+
+        with patch.object(fluxo.janelas, 'janelas_por_titulo', return_value=[janela]), \
+                patch.object(fluxo.janelas, 'trazer_para_frente', return_value=False):
+            resultado = fluxo.trazer_vps_para_frente(tela, mensagens.append)
+
+        self.assertFalse(resultado)
+        self.assertTrue(any('manualmente' in m for m in mensagens), mensagens)
+
+    def test_sem_janela_espera_ate_o_prazo_e_avisa(self):
+        tela = TelaFalsa(set(), [])
+        mensagens = []
+
+        with patch.object(fluxo.janelas, 'janelas_por_titulo', return_value=[]):
+            resultado = fluxo.trazer_vps_para_frente(tela, mensagens.append, prazo=3)
+
+        self.assertFalse(resultado)
+        self.assertIn(('esperar', fluxo.INTERVALO_JANELA), tela.acoes)
+        self.assertTrue(any('Não achei a janela' in m for m in mensagens), mensagens)
+
+
+class TestContextoDeTela(unittest.TestCase):
+    """Os números que explicam 'o arquivo existe mas nunca é achado'."""
+
+    def setUp(self):
+        # As capturas reais ficam só no PC local: o teste não depende delas.
+        patcher = patch.object(fluxo, 'validar_imagens', lambda imagens=None: None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    class TelaMedida(TelaFalsa):
+        def __init__(self, tamanho_tela, tamanho_imagem, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._tela = tamanho_tela
+            self._imagem = tamanho_imagem
+
+        def tamanho_tela(self):
+            return self._tela
+
+        def tamanho_imagem(self, caminho):
+            return self._imagem
+
+        def descricao_tela(self):
+            return 'resolução 1920x1080; escala 150%; DPI aware'
+
+    def test_registra_resolucao_e_tamanho_das_capturas(self):
+        tela = self.TelaMedida((1920, 1080), (812, 344),
+                               {IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
+        mensagens = []
+
+        fluxo.executar_ate_uliana(tela, ACESSO, mensagens.append, lambda: None)
+
+        texto = '\n'.join(mensagens)
+        self.assertIn('resolução 1920x1080; escala 150%', texto)
+        self.assertIn('login.png: 812x344 px', texto)
+        self.assertIn('uliana.png: 812x344 px', texto)
+        self.assertNotIn('MAIOR que a tela', texto)
+
+    def test_avisa_quando_a_captura_e_maior_que_a_tela(self):
+        # Captura feita em outra resolução: nunca vai casar, e o log diz na hora.
+        tela = self.TelaMedida((1920, 1080), (2400, 1300),
+                               {IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
+        mensagens = []
+
+        fluxo.executar_ate_uliana(tela, ACESSO, mensagens.append, lambda: None)
+
+        self.assertTrue(any('MAIOR que a tela atual' in m for m in mensagens), mensagens)
+
+    def test_tela_sem_medidas_nao_quebra_o_fluxo(self):
+        # A tela falsa antiga não mede nada: o passo segue, só sem o diagnóstico.
+        tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
+        resultado, _, _ = executar(tela)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+
+
+class TestPrepararVpsNoFluxo(unittest.TestCase):
+    def setUp(self):
+        patcher = patch.object(fluxo, 'validar_imagens', lambda imagens=None: None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_rodou_depois_de_abrir_o_rdp_e_antes_de_procurar(self):
+        tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
+        ordem = []
+
+        fluxo.executar_ate_uliana(
+            tela, ACESSO, ordem.append, lambda: ordem.append('abrir_rdp'),
+            preparar_vps=lambda: ordem.append('preparar_vps'))
+
+        self.assertLess(ordem.index('abrir_rdp'), ordem.index('preparar_vps'))
+
+    def test_contexto_vem_depois_de_preparar_a_vps(self):
+        tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
+        tela.tamanho_tela = lambda: (1920, 1080)
+        tela.tamanho_imagem = lambda caminho: (100, 40)
+        tela.descricao_tela = lambda: 'resolução 1920x1080'
+        ordem = []
+
+        fluxo.executar_ate_uliana(
+            tela, ACESSO, ordem.append, lambda: ordem.append('abrir_rdp'),
+            preparar_vps=lambda: ordem.append('preparar_vps'))
+
+        indice_contexto = next(i for i, m in enumerate(ordem) if m.startswith('Tela:'))
+        self.assertLess(ordem.index('preparar_vps'), indice_contexto)
+
+    def test_sem_preparar_vps_o_fluxo_funciona_igual(self):
+        tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
+        resultado, _, abertura = executar(tela)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+        self.assertEqual(abertura, [1])
 
 
 if __name__ == '__main__':

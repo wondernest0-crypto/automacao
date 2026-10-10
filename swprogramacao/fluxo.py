@@ -4,14 +4,19 @@ Sequência combinada:
   1. Confere se as 4 capturas existem em img/swprogramacao/ (falha antes de
      abrir a VPS se faltar alguma — imagem ausente não é "não achou na tela").
   2. Abre o SWPROGRAMACAO.rdp (igual a dar dois cliques nele).
-  3. A cada ciclo, PROCURA TODAS AS IMAGENS na tela antes de decidir o próximo
+  3. Espera a janela da Conexão de Área de Trabalho Remota aparecer e a põe em
+     PRIMEIRO PLANO (sem redimensionar). A busca por imagem só enxerga o que
+     está visível na tela: VPS minimizada ou atrás de outra janela nunca casa.
+  4. Registra resolução, escala de exibição e o tamanho em pixels de cada
+     captura: são os números que explicam "a imagem existe mas nunca é achada".
+  5. A cada ciclo, PROCURA TODAS AS IMAGENS na tela antes de decidir o próximo
      passo:
        login.png            -> login do Windows: usuário, TAB, senha, ENTER,
                                espera ESPERA_APOS_ENTER_WINDOWS
        login_edi.png        -> login do EDI: usuário, TAB, senha, ENTER,
                                espera ESPERA_APOS_ENTER_EDI (4 s)
        informe_parceiro.png -> chegou na tela de parceiros: sai do loop
-  4. Com informe_parceiro.png na tela, PROCURA uliana.png. Achou: registra e
+  6. Com informe_parceiro.png na tela, PROCURA uliana.png. Achou: registra e
      termina (não clica em nada). Não achou no prazo: para com erro.
 
 Cada login é digitado uma vez. Se a tela não avançar (por exemplo, senha
@@ -21,6 +26,7 @@ o usuário. Nenhuma senha é gravada nem aparece no log.
 import os
 from dataclasses import dataclass, field
 
+from core import janelas
 from core.caminhos import DIR_BASE, DIR_IMG
 
 PASTA_IMAGENS = os.path.join(DIR_IMG, 'swprogramacao')
@@ -36,6 +42,8 @@ INTERVALO = 1.0           # s: pausa entre as verificações da tela
 INTERVALO_LOG = 30        # s: de quanto em quanto tempo registra que segue procurando
 ESPERA_APOS_ENTER_WINDOWS = 3.0  # s: tempo para a tela trocar depois do ENTER do Windows
 ESPERA_APOS_ENTER_EDI = 4.0      # s: tempo para carregar depois do ENTER do EDI
+ESPERA_JANELA_RDP = 30    # s: tempo para a janela da VPS aparecer depois de abrir o .rdp
+INTERVALO_JANELA = 1.0    # s: pausa entre as procuras pela janela da VPS
 
 ENCONTRADA = 'uliana_encontrada'
 
@@ -76,6 +84,74 @@ def _varrer(tela):
             for imagem in (IMG_LOGIN, IMG_LOGIN_EDI, IMG_INFORME)}
 
 
+def trazer_vps_para_frente(tela, registrar, prazo=ESPERA_JANELA_RDP):
+    """Espera a janela da VPS aparecer e a coloca em primeiro plano.
+
+    Abre-se o .rdp e a janela pode demorar, vir minimizada ou ficar atrás do
+    terminal — e a busca por imagem só enxerga o que está visível na tela. Aqui
+    a janela é ativada SEM redimensionar: mudar o tamanho da janela muda a
+    escala do conteúdo remoto e quebra a comparação com a captura.
+
+    Devolve True quando a janela ficou comprovadamente em primeiro plano. Não
+    levanta erro: sem a confirmação o fluxo segue e o log diz o que aconteceu.
+    """
+    limite = tela.agora() + prazo
+    while True:
+        achadas = janelas.janelas_por_titulo()
+        if achadas:
+            janela = achadas[0]
+            titulo = (getattr(janela, 'title', '') or '').strip()
+            if janelas.trazer_para_frente(janela):
+                registrar(f'Janela da VPS em primeiro plano: "{titulo}".')
+                return True
+            registrar(f'Achei a janela da VPS ("{titulo}"), mas não consegui colocá-la '
+                      'em primeiro plano. Traga a janela da VPS para a frente '
+                      'manualmente: a automação só enxerga o que está visível.')
+            return False
+        if tela.agora() > limite:
+            registrar(f'Não achei a janela da Conexão de Área de Trabalho Remota em '
+                      f'{prazo} s. Se a VPS abriu com outro título, avise para ajustar '
+                      'a busca; enquanto isso, mantenha a janela da VPS visível.')
+            return False
+        tela.esperar(INTERVALO_JANELA)
+
+
+def _par_de_pixeis(valor):
+    """(largura, altura) quando valor é um par de números; senão None."""
+    try:
+        largura, altura = valor
+        return int(largura), int(altura)
+    except (TypeError, ValueError):
+        return None
+
+
+def _registrar_contexto_de_tela(tela, registrar):
+    """Registra resolução, escala e o tamanho em pixels de cada captura.
+
+    É o diagnóstico de "o arquivo existe mas nunca é achado": se a captura foi
+    feita em outra resolução ou com outra escala de exibição, os tamanhos não
+    batem e a comparação por pixels nunca fecha. Uma captura maior que a tela
+    atual é impossível de achar, e o log diz isso na hora.
+    """
+    descricao = getattr(tela, 'descricao_tela', None)
+    if descricao is not None:
+        registrar(f'Tela: {descricao()}')
+    medir_tela = getattr(tela, 'tamanho_tela', None)
+    medir_imagem = getattr(tela, 'tamanho_imagem', None)
+    if medir_tela is None or medir_imagem is None:
+        return
+    tamanho_tela = _par_de_pixeis(medir_tela())
+    for caminho in IMAGENS:
+        tamanho = _par_de_pixeis(medir_imagem(caminho))
+        if not tamanho:
+            continue
+        aviso = ''
+        if tamanho_tela and (tamanho[0] > tamanho_tela[0] or tamanho[1] > tamanho_tela[1]):
+            aviso = (f' — MAIOR que a tela atual ({tamanho_tela[0]}x{tamanho_tela[1]}): '
+                     'nunca será encontrada, recapture nesta resolução')
+        registrar(f'  {os.path.basename(caminho)}: {tamanho[0]}x{tamanho[1]} px{aviso}')
+
+
 def _preencher(tela, login, senha, espera):
     """Campo de usuário já está com o foco: digita usuário, TAB, senha, ENTER e espera."""
     tela.colar(login)
@@ -85,11 +161,19 @@ def _preencher(tela, login, senha, espera):
     tela.esperar(espera)
 
 
-def executar_ate_uliana(tela, acesso, registrar, abrir_rdp):
-    """Roda o passo 1. Devolve ENCONTRADA ou levanta FalhaFluxo."""
+def executar_ate_uliana(tela, acesso, registrar, abrir_rdp, preparar_vps=None):
+    """Roda o passo 1. Devolve ENCONTRADA ou levanta FalhaFluxo.
+
+    `abrir_rdp` e `preparar_vps` vêm de fora (a linha de comando passa os reais;
+    os testes passam objetos falsos). `preparar_vps` é chamado depois de abrir o
+    .rdp e deve trazer a janela da VPS para o primeiro plano; None pula a etapa.
+    """
     validar_imagens()
     abrir_rdp()
     registrar('SWPROGRAMACAO.rdp aberto. Aguardando a tela de login da VPS...')
+    if preparar_vps is not None:
+        preparar_vps()
+    _registrar_contexto_de_tela(tela, registrar)
     preenchido = {'windows': False, 'edi': False}
     prazo = tela.agora() + TIMEOUT_ACESSO
     ultimo_log = tela.agora()
@@ -113,10 +197,15 @@ def executar_ate_uliana(tela, acesso, registrar, abrir_rdp):
         if tela.agora() > prazo:
             raise FalhaFluxo(
                 f'tempo limite de {TIMEOUT_ACESSO} s esgotado sem chegar à tela de '
-                'parceiros. Confira a tela da VPS e o log.')
+                'parceiros. Confira a tela da VPS e o log: a janela da VPS precisa '
+                'estar visível (não minimizada) e as capturas precisam ter sido '
+                'feitas nesta mesma resolução e escala de exibição '
+                '(python -m swprogramacao --diagnostico mostra os tamanhos).')
         if tela.agora() - ultimo_log >= INTERVALO_LOG:
             registrar('Procurando na tela por login.png, login_edi.png e '
-                      'informe_parceiro.png... nada visível ainda.')
+                      'informe_parceiro.png... nada visível ainda. A janela da VPS '
+                      'tem de estar visível (não minimizada nem coberta) e a captura '
+                      'feita nesta mesma resolução e escala.')
             ultimo_log = tela.agora()
         tela.esperar(INTERVALO)
     registrar('Tela de parceiros encontrada (informe_parceiro.png).')
