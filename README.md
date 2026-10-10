@@ -60,31 +60,32 @@ Fluxo previsto: primeiro a parte **SWProgramação** (VPS: pedido HONDA e depois
 
 ## 🖥️ SWProgramação (VPS): passo 1
 
-Este passo abre a VPS, faz os dois logins e **procura a ULIANA na lista de parceiros**. Quando a ULIANA é encontrada, o passo termina (não clica nela). Ainda não faz configurações nem importação de pedidos.
+Este passo abre a VPS, faz os dois logins e **procura a ULIANA na lista de parceiros**. Quando a ULIANA é encontrada, a automação **clica nela 3 vezes**, pausa e encerra com sucesso — a VPS permanece aberta com a ULIANA carregada. Ainda não faz configurações nem importação de pedidos.
 
 **Ele é a primeira etapa da sequência do START**, e é o mesmo procedimento nos dois caminhos: `python -m swprogramacao` (com terminal) e o botão START da interface (sem terminal), que passa por `orquestrador.py`. Enquanto este procedimento não estiver finalizado, o DATASUL não é executado (veja “Partes do projeto” acima).
 
 O procedimento na tela da VPS, na ordem (o campo de usuário já vem com o foco, por isso nada é clicado):
 
 ```
+(abre o .rdp, aguarda 10 s e traz a janela da VPS para a frente)
 login.png             -> usuário do Windows, TAB, senha, ENTER  (espera 3 s)
 login_edi.png         -> usuário do EDI, TAB, senha, ENTER      (espera 4 s para carregar)
 informe_parceiro.png  -> tela “Informe o parceiro”: os logins terminaram
-uliana.png            -> procura a ULIANA na lista e encerra (não clica)
+uliana.png            -> clica 3 vezes na ULIANA, pausa e encerra com sucesso
 ```
 
 **O que ele faz, em ordem:**
 
 1. Confere se as 4 capturas existem em `img/swprogramacao/`. Se faltar alguma, **para antes de abrir a VPS** e diz quais faltam (imagem ausente é arquivo ausente, não "não achei na tela").
 2. Abre o `SWPROGRAMACAO.rdp` da área de trabalho (igual a dar dois cliques). A busca cobre a pasta real da área de trabalho do Windows (API de pastas conhecidas), `Desktop`, `Área de Trabalho` e as versões dentro do OneDrive.
-3. Espera a janela da **Conexão de Área de Trabalho Remota** aparecer e a coloca em **primeiro plano**, sem redimensionar (redimensionar muda a escala do conteúdo remoto e quebra a comparação com a captura). A busca por imagem só enxerga o que está visível na tela: VPS minimizada ou atrás de outra janela nunca casa.
+3. **Aguarda 10 s** após abrir o `.rdp` e então espera a janela da **Conexão de Área de Trabalho Remota** aparecer e a coloca em **primeiro plano**, sem redimensionar (redimensionar muda a escala do conteúdo remoto e quebra a comparação com a captura). A busca por imagem só enxerga o que está visível na tela: VPS minimizada ou atrás de outra janela nunca casa.
 4. Registra no log a **resolução, a escala de exibição e o tamanho em pixels de cada captura** — são os números que explicam "o arquivo existe mas nunca é achado". Captura maior que a tela atual é impossível de achar, e o log avisa.
-5. A cada ciclo, **procura TODAS as imagens na tela antes de decidir o próximo passo**, testando a confiança de 0.9 até 0.6 (o valor em que a imagem casou vai para o `--diagnostico`):
+5. A cada ciclo, **procura as imagens na ordem** `login.png`, depois `login_edi.png`, depois `informe_parceiro.png`, e age na primeira que achar, testando a confiança de 0.9 até 0.6 (o valor em que a imagem casou vai para o `--diagnostico`):
    - `login.png` (login do Windows, com o campo de usuário já em foco): usuário, TAB, senha, ENTER, e espera 3 s;
    - `login_edi.png` (login do EDI, "Usuário:"): usuário, TAB, senha, ENTER, e espera **4 s** (`ESPERA_APOS_ENTER_EDI`);
    - `informe_parceiro.png`: é o sinal de que os logins terminaram.
    Cada login é digitado **uma vez**. Se a senha estiver errada, o passo para com erro e não tenta de novo.
-6. Com `informe_parceiro.png` na tela, **procura `uliana.png`**. Achou: registra "ULIANA encontrada" e **termina** (não clica). Se não achar em 15 s, para com erro.
+6. Com `informe_parceiro.png` na tela, **procura `uliana.png`**. Achou: **clica nela 3 vezes**, pausa 5 s e **termina com sucesso** (a VPS continua aberta). Se não achar em 15 s, para com erro.
 
 **Antes de rodar:**
 
@@ -131,8 +132,8 @@ grande e vermelho **START**. Ao clicar, a interface chama
 >
 > A parte do `SWPROGRAMACAO.rdp` ainda está em construção, e ficou combinado
 > que o DATASUL só entra **depois que todo o procedimento do RDP terminar**.
-> Hoje o START roda somente os passos 1 e 2 abaixo (a VPS), encerra na ULIANA
-> e reabre a interface — nenhuma tecla é enviada ao DATASUL. Os passos do
+> Hoje o START roda somente os passos 1 e 2 abaixo (a VPS), encerra após
+> clicar 3 vezes na ULIANA e reabre a interface — nenhuma tecla é enviada ao DATASUL. Os passos do
 > DATASUL continuam prontos no motor (`totvs/automacao.py`,
 > `AutomacaoTOTVS.importar_pedido`) e voltam à sequência quando essa etapa for
 > dada como finalizada; nada mais precisa mudar, porque a ordem “VPS primeiro,
@@ -143,9 +144,10 @@ grande e vermelho **START**. Ao clicar, a interface chama
 1. **Abre a VPS:** procura `SWPROGRAMACAO.rdp` na área de trabalho (Desktop,
    OneDrive/Desktop, Área de Trabalho e OneDrive/Área de Trabalho) e o abre
    igual a dar dois cliques; depois traz a janela da VPS para o primeiro plano.
-2. **Faz o procedimento da VPS:** login do Windows (usuário, TAB, senha, ENTER),
-   login do EDI (usuário, TAB, senha, ENTER), 4 s para carregar, espera a tela
-   “Informe o parceiro” e procura a ULIANA. É exatamente o mesmo procedimento
+2. **Faz o procedimento da VPS:** aguarda 10 s após abrir o `.rdp`, login do
+   Windows (usuário, TAB, senha, ENTER), login do EDI (usuário, TAB, senha,
+   ENTER), 4 s para carregar, espera a tela “Informe o parceiro”, procura a
+   ULIANA e clica nela 3 vezes. É exatamente o mesmo procedimento
    de `python -m swprogramacao` (seção acima). Sem o `.rdp`, sem acesso salvo
    ou com alguma captura faltando, ele para **antes** de abrir a VPS.
 3. **Encerra e reabre a interface**, registrando no log que o DATASUL está
@@ -425,7 +427,7 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 - Testar **Esquecer acesso** e confirmar que a senha não volta ao reabrir.
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
-- SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp`, mostrar resolução/escala/janela da VPS e achar as 4 imagens; depois, rodar até achar a ULIANA (`ULIANA encontrada` no log).
+- SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp`, mostrar resolução/escala/janela da VPS e achar as 4 imagens; depois, rodar até achar a ULIANA, clicar nela 3 vezes e terminar com sucesso (`ULIANA encontrada ... clicando 3 vezes` no log).
 - Sequência (orquestrador): com o passo 1 simulado como concluído, o START termina sem chamar o DATASUL e sem enviar nenhuma tecla; com o passo 1 falhando, o DATASUL não é chamado, o aviso aparece na tela e a interface é reaberta.
 - SWProgramação: sem as 4 capturas em `img/swprogramacao/`, o passo para **antes** de abrir a VPS e diz quais faltam; com `--salvar-acesso` (ou variáveis de ambiente), rodar de novo não deve pedir senha.
 - SWProgramação: ao rodar, o log deve trazer `Janela da VPS em primeiro plano` e a linha `Tela: resolução ...; escala ...` com o tamanho em pixels de cada captura.

@@ -1,7 +1,8 @@
 """Sequência do START (orquestrador.py, na raiz): a VPS primeiro, o DATASUL depois.
 
 Hoje a entrada no DATASUL não existe na sequência: o START roda SOMENTE o
-procedimento do SWPROGRAMACAO.rdp e encerra na ULIANA. Os testes usam um bot
+procedimento do SWPROGRAMACAO.rdp e encerra após clicar 3 vezes na ULIANA.
+Os testes usam um bot
 falso (o mesmo "contrato" do AutomacaoTOTVS: log, log_erro,
 mostrar_erro_visivel e reabrir_interface) e um passo 1 simulado — sem Windows,
 sem VPS e sem tela.

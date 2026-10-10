@@ -602,9 +602,9 @@ class LancamentoInventario:
             frame_passos,
             text=(
                 "1) Abre a VPS (SWPROGRAMACAO.rdp da área de trabalho)\n"
-                "2) Login do Windows da VPS e login do EDI\n"
+                "2) Aguarda 10 s e faz o login do Windows e o login do EDI\n"
                 "3) Espera a tela \"Informe o parceiro\" e carrega (4 s)\n"
-                "4) Procura a ULIANA na lista e encerra\n"
+                "4) Procura a ULIANA na lista, clica 3 vezes, pausa e encerra\n"
                 "5) DATASUL: não entra agora (volta quando a VPS estiver ok)"
             ),
             font=('Arial', 9),

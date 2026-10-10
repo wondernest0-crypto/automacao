@@ -12,7 +12,8 @@ VPS (o campo de usuário já vem com o foco, por isso não se clica em nada):
     informe_parceiro.png ("Informe o parceiro")
         -> sinal de que os dois logins terminaram
     uliana.png
-        -> procura a ULIANA na lista e encerra (não clica nela)
+        -> clica 3 vezes na ULIANA, pausa e encerra com sucesso
+           (a VPS permanece aberta com a ULIANA carregada)
 
 Este passo é a PRIMEIRA etapa da sequência: o DATASUL só é executado depois
 que ele termina (a ordem fica em orquestrador.py, na raiz). Enquanto o
@@ -23,20 +24,23 @@ Detalhes da execução:
   1. Confere se as 4 capturas existem em img/swprogramacao/ (falha antes de
      abrir a VPS se faltar alguma — imagem ausente não é "não achou na tela").
   2. Abre o SWPROGRAMACAO.rdp (igual a dar dois cliques nele).
-  3. Espera a janela da Conexão de Área de Trabalho Remota aparecer e a põe em
+  3. Aguarda ESPERA_APOS_ABRIR_RDP (10 s) após abrir o .rdp, antes de procurar
+     as imagens na tela.
+  4. Espera a janela da Conexão de Área de Trabalho Remota aparecer e a põe em
      PRIMEIRO PLANO (sem redimensionar). A busca por imagem só enxerga o que
      está visível na tela: VPS minimizada ou atrás de outra janela nunca casa.
-  4. Registra resolução, escala de exibição e o tamanho em pixels de cada
+  5. Registra resolução, escala de exibição e o tamanho em pixels de cada
      captura: são os números que explicam "a imagem existe mas nunca é achada".
-  5. A cada ciclo, PROCURA TODAS AS IMAGENS na tela antes de decidir o próximo
-     passo:
+  6. A cada ciclo, procura as imagens NA ORDEM login.png, depois
+     login_edi.png, depois informe_parceiro.png, e age na primeira que achar:
        login.png            -> login do Windows: usuário, TAB, senha, ENTER,
                                espera ESPERA_APOS_ENTER_WINDOWS
        login_edi.png        -> login do EDI: usuário, TAB, senha, ENTER,
                                espera ESPERA_APOS_ENTER_EDI (4 s)
        informe_parceiro.png -> chegou na tela de parceiros: sai do loop
-  6. Com informe_parceiro.png na tela, PROCURA uliana.png. Achou: registra e
-     termina (não clica em nada). Não achou no prazo: para com erro.
+  7. Com informe_parceiro.png na tela, PROCURA uliana.png. Achou: clica
+     CLIQUES_ULIANA (3) vezes, pausa PAUSA_APOS_ULIANA e encerra com sucesso.
+     Não achou no prazo: para com erro.
 
 Cada login é digitado uma vez. Se a tela não avançar (por exemplo, senha
 errada), o passo para com erro em vez de tentar de novo, para não bloquear
@@ -59,10 +63,13 @@ TIMEOUT_ACESSO = 300      # s: tempo máximo para chegar à tela de parceiros
 TIMEOUT_ULIANA = 15       # s: tempo para a ULIANA aparecer na lista
 INTERVALO = 1.0           # s: pausa entre as verificações da tela
 INTERVALO_LOG = 30        # s: de quanto em quanto tempo registra que segue procurando
+ESPERA_APOS_ABRIR_RDP = 10.0     # s: espera após abrir o .rdp, antes de procurar as imagens
 ESPERA_APOS_ENTER_WINDOWS = 3.0  # s: tempo para a tela trocar depois do ENTER do Windows
 ESPERA_APOS_ENTER_EDI = 4.0      # s: tempo para carregar depois do ENTER do EDI
 ESPERA_JANELA_RDP = 30    # s: tempo para a janela da VPS aparecer depois de abrir o .rdp
 INTERVALO_JANELA = 1.0    # s: pausa entre as procuras pela janela da VPS
+CLIQUES_ULIANA = 3        # quantos cliques a ULIANA recebe quando é encontrada
+PAUSA_APOS_ULIANA = 5.0   # s: pausa após os cliques na ULIANA, antes de encerrar o passo
 
 ENCONTRADA = 'uliana_encontrada'
 
@@ -95,12 +102,6 @@ def validar_imagens(imagens=None):
             + ', '.join(faltando)
             + '. Coloque as capturas reais da tela da VPS nesse caminho '
             '(veja img/swprogramacao/README.md).')
-
-
-def _varrer(tela):
-    """Procura TODAS as imagens da fase de acesso de uma só vez na tela."""
-    return {imagem: tela.localizar(imagem)
-            for imagem in (IMG_LOGIN, IMG_LOGIN_EDI, IMG_INFORME)}
 
 
 def trazer_vps_para_frente(tela, registrar, prazo=ESPERA_JANELA_RDP):
@@ -189,7 +190,9 @@ def executar_ate_uliana(tela, acesso, registrar, abrir_rdp, preparar_vps=None):
     """
     validar_imagens()
     abrir_rdp()
-    registrar('SWPROGRAMACAO.rdp aberto. Aguardando a tela de login da VPS...')
+    registrar(f'SWPROGRAMACAO.rdp aberto. Aguardando {ESPERA_APOS_ABRIR_RDP:g} s '
+              'antes de procurar as imagens na tela...')
+    tela.esperar(ESPERA_APOS_ABRIR_RDP)
     if preparar_vps is not None:
         preparar_vps()
     _registrar_contexto_de_tela(tela, registrar)
@@ -198,21 +201,21 @@ def executar_ate_uliana(tela, acesso, registrar, abrir_rdp, preparar_vps=None):
     ultimo_log = tela.agora()
 
     while True:
-        # Antes de qualquer próximo passo, confere TODAS as imagens na tela.
-        visiveis = _varrer(tela)
-        if visiveis[IMG_INFORME] is not None:
-            break
-        if not preenchido['windows'] and visiveis[IMG_LOGIN] is not None:
+        # Ordem de procura: login.png; se não achar, login_edi.png; se não
+        # achar, informe_parceiro.png. Age na primeira que aparecer.
+        if not preenchido['windows'] and tela.localizar(IMG_LOGIN) is not None:
             registrar('Login do Windows encontrado (login.png): preenchendo usuário e senha.')
             _preencher(tela, acesso.windows_login, acesso.windows_senha,
                        ESPERA_APOS_ENTER_WINDOWS)
             preenchido['windows'] = True
             continue
-        if not preenchido['edi'] and visiveis[IMG_LOGIN_EDI] is not None:
+        if not preenchido['edi'] and tela.localizar(IMG_LOGIN_EDI) is not None:
             registrar('Login do EDI encontrado (login_edi.png): preenchendo usuário e senha.')
             _preencher(tela, acesso.edi_login, acesso.edi_senha, ESPERA_APOS_ENTER_EDI)
             preenchido['edi'] = True
             continue
+        if tela.localizar(IMG_INFORME) is not None:
+            break
         if tela.agora() > prazo:
             raise FalhaFluxo(
                 f'tempo limite de {TIMEOUT_ACESSO} s esgotado sem chegar à tela de '
@@ -222,18 +225,26 @@ def executar_ate_uliana(tela, acesso, registrar, abrir_rdp, preparar_vps=None):
                 '(python -m swprogramacao --diagnostico mostra os tamanhos).')
         if tela.agora() - ultimo_log >= INTERVALO_LOG:
             registrar('Procurando na tela por login.png, login_edi.png e '
-                      'informe_parceiro.png... nada visível ainda. A janela da VPS '
-                      'tem de estar visível (não minimizada nem coberta) e a captura '
-                      'feita nesta mesma resolução e escala.')
+                      'informe_parceiro.png (nessa ordem)... nada visível ainda. '
+                      'A janela da VPS tem de estar visível (não minimizada nem '
+                      'coberta) e a captura feita nesta mesma resolução e escala.')
             ultimo_log = tela.agora()
         tela.esperar(INTERVALO)
     registrar('Tela de parceiros encontrada (informe_parceiro.png).')
 
-    # Só procura a ULIANA: não clica nela. Achou, o passo termina.
+    # Achou a ULIANA: clica CLIQUES_ULIANA vezes, pausa e encerra com sucesso.
+    # A VPS permanece aberta com a ULIANA carregada.
     prazo_uliana = tela.agora() + TIMEOUT_ULIANA
-    while tela.localizar(IMG_ULIANA) is None:
+    pos_uliana = tela.localizar(IMG_ULIANA)
+    while pos_uliana is None:
         if tela.agora() > prazo_uliana:
             raise FalhaFluxo('a ULIANA (uliana.png) não apareceu na lista de parceiros.')
         tela.esperar(INTERVALO)
-    registrar('ULIANA encontrada (uliana.png). Fim do passo.')
+        pos_uliana = tela.localizar(IMG_ULIANA)
+    registrar(f'ULIANA encontrada (uliana.png): clicando {CLIQUES_ULIANA} vezes.')
+    tela.clicar(pos_uliana, vezes=CLIQUES_ULIANA)
+    registrar(f'Pausa de {PAUSA_APOS_ULIANA:g} s após os cliques na ULIANA...')
+    tela.esperar(PAUSA_APOS_ULIANA)
+    registrar('ULIANA aberta. Fim do passo com sucesso '
+              '(a VPS permanece aberta com a ULIANA carregada).')
     return ENCONTRADA

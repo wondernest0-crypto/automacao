@@ -23,7 +23,7 @@ DATASUL não é chamado.
 | `login.png` | Tela de **login do Windows** da VPS (onde pede usuário e senha do Windows). | Recorte com a área do formulário de login. A automação cola o usuário, dá TAB, cola a senha e dá ENTER — o campo precisa ser o foco da tela. |
 | `login_edi.png` | Tela de **login do EDI** (onde aparece `Usuário:`). | Recorte com o rótulo `Usuário:` e o campo ao lado. Só aparece depois do login do Windows. |
 | `informe_parceiro.png` | Tela **"Informe o parceiro"**. | Recorte com o rótulo `Informe o parceiro:` — é o sinal de que os logins terminaram. |
-| `uliana.png` | A linha **ULIANA** na lista de parceiros. | Recorte pequeno, só a linha da ULIANA (nome + código, se houver). A automação só procura essa linha e termina; não clica nela. |
+| `uliana.png` | A linha **ULIANA** na lista de parceiros. | Recorte pequeno, só a linha da ULIANA (nome + código, se houver). A automação procura essa linha, clica nela 3 vezes, pausa e encerra com sucesso. |
 
 ## Regras importantes
 

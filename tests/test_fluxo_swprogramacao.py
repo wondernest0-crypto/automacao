@@ -2,8 +2,9 @@
 
 A tela falsa segue um roteiro: as imagens visíveis mudam a cada ENTER.
 O relógio também é falso, então os testes não esperam de verdade.
-Sequência testada: login do Windows (3 s), login do EDI (4 s), tela de
-parceiros, procurar a ULIANA e terminar (sem clicar nela).
+Sequência testada: espera de 10 s após abrir o .rdp, login do Windows (3 s),
+login do EDI (4 s), tela de parceiros, ULIANA clicada 3 vezes, pausa final
+e sucesso (a VPS permanece aberta).
 """
 import os
 import tempfile
@@ -45,6 +46,9 @@ class TelaFalsa:
     def localizar(self, caminho):
         return (10, 20) if caminho in self.visiveis else None
 
+    def clicar(self, posicao, vezes=1, intervalo=0.7):
+        self.acoes.append(('clicar', vezes))
+
     def clicar_duplo(self, caminho):  # o passo 1 não deve usar isto
         self.acoes.append(('duplo', caminho))
         return caminho in self.visiveis
@@ -82,12 +86,22 @@ class TestPassoUm(unittest.TestCase):
         self.assertEqual(resultado, fluxo.ENCONTRADA)
         self.assertEqual(abertura, [1], 'o .rdp deve ser aberto uma vez')
         self.assertEqual(tela.acoes, [
+            ('esperar', fluxo.ESPERA_APOS_ABRIR_RDP),
             ('colar', 'usuario-win'), ('tecla', 'tab'),
             ('colar', SENHA_WIN), ('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER_WINDOWS),
             ('colar', 'usuario-edi'), ('tecla', 'tab'),
             ('colar', SENHA_EDI), ('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER_EDI),
+            ('clicar', fluxo.CLIQUES_ULIANA), ('esperar', fluxo.PAUSA_APOS_ULIANA),
         ])
         self.assertTrue(any('ULIANA encontrada' in m for m in mensagens))
+
+    def test_espera_dez_segundos_apos_abrir_o_rdp_antes_de_procurar(self):
+        self.assertEqual(fluxo.ESPERA_APOS_ABRIR_RDP, 10.0)
+        tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
+        executar(tela)
+        self.assertEqual(tela.acoes[0], ('esperar', 10.0))
+        self.assertLess(tela.acoes.index(('esperar', 10.0)),
+                        tela.acoes.index(('colar', 'usuario-win')))
 
     def test_espera_do_edi_e_de_4_segundos(self):
         self.assertEqual(fluxo.ESPERA_APOS_ENTER_EDI, 4.0)
@@ -96,12 +110,19 @@ class TestPassoUm(unittest.TestCase):
         indice_enter = tela.acoes.index(('tecla', 'enter'))
         self.assertEqual(tela.acoes[indice_enter + 1], ('esperar', 4.0))
 
-    def test_nada_e_clicado_nem_digitado_depois_de_achar_a_uliana(self):
-        # Só procura: não há duplo clique, e o último ato é o ENTER do EDI.
+    def test_uliana_recebe_tres_cliques_e_pausa_final(self):
+        # A ULIANA é clicada 3 vezes; o passo pausa e termina com sucesso.
         tela = TelaFalsa({IMG_LOGIN}, [{IMG_LOGIN_EDI}, {IMG_INFORME, IMG_ULIANA}])
-        executar(tela)
+        resultado, mensagens, _ = executar(tela)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+        self.assertEqual(fluxo.CLIQUES_ULIANA, 3)
+        self.assertEqual(tela.acoes[-2:],
+                         [('clicar', 3), ('esperar', fluxo.PAUSA_APOS_ULIANA)])
+        # Nada é digitado depois dos cliques na ULIANA.
+        ultimo_colar = max(i for i, acao in enumerate(tela.acoes) if acao[0] == 'colar')
+        self.assertLess(ultimo_colar, tela.acoes.index(('clicar', 3)))
         self.assertFalse([a for a in tela.acoes if a[0] == 'duplo'])
-        self.assertEqual(tela.acoes[-2:], [('tecla', 'enter'), ('esperar', fluxo.ESPERA_APOS_ENTER_EDI)])
+        self.assertTrue(any('clicando 3 vezes' in m for m in mensagens))
 
     def test_login_do_edi_direto_nao_digita_o_windows(self):
         tela = TelaFalsa({IMG_LOGIN_EDI}, [{IMG_INFORME, IMG_ULIANA}])
@@ -143,7 +164,8 @@ class TestPassoUm(unittest.TestCase):
             executar(tela)
 
         self.assertIn('ULIANA', str(contexto.exception))
-        self.assertFalse([a for a in tela.acoes if a[0] == 'duplo'])
+        self.assertFalse([a for a in tela.acoes if a[0] in ('duplo', 'clicar')],
+                         'sem ULIANA na tela, nada deve ser clicado')
 
     def test_uliana_que_aparece_depois_ainda_e_encontrada(self):
         # A ULIANA demora um pouco: o passo espera e termina quando ela aparece.
@@ -158,7 +180,18 @@ class TestPassoUm(unittest.TestCase):
         resultado, _, _ = executar(tela)
         self.assertEqual(resultado, fluxo.ENCONTRADA)
         self.assertEqual(tela.procuras, 3)
-        self.assertFalse([a for a in tela.acoes if a[0] == 'duplo'])
+        self.assertIn(('clicar', 3), tela.acoes, 'achou a ULIANA: clica 3 vezes')
+
+    def test_login_edi_e_preenchido_mesmo_com_informe_visivel(self):
+        # Procura em cascata: login_edi.png visível junto com informe_parceiro.png
+        # ainda preenche o EDI antes de sair do loop pela tela de parceiros.
+        tela = TelaFalsa({IMG_LOGIN_EDI, IMG_INFORME}, [{IMG_INFORME, IMG_ULIANA}])
+
+        resultado, _, _ = executar(tela)
+
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+        self.assertIn(('colar', 'usuario-edi'), tela.acoes)
+        self.assertIn(('clicar', 3), tela.acoes)
 
     def test_nada_visivel_estoura_prazo_sem_digitar_nada(self):
         tela = TelaFalsa(set(), [])
