@@ -10,13 +10,14 @@ SEQUÊNCIA DO START (aba "Importar Pedido HONDA & GM")
        procedimento completo da VPS (swprogramacao/execucao.py):
          login do Windows  -> usuário, TAB, senha, ENTER;
          login do EDI      -> usuário, TAB, senha, ENTER e 4 s para carregar;
-         tela "Informe o parceiro" -> procura a ULIANA e para aí.
+         tela "Informe o parceiro" -> procura a ULIANA, clica 3 vezes, pausa
+         e encerra com sucesso (a VPS permanece aberta).
     2. DATASUL — só entra depois que o passo 1 termina.
 
 HOJE SÓ O PASSO 1 EXISTE NA SEQUÊNCIA. A parte do SWPROGRAMACAO.rdp ainda está
 em construção, e foi decidido que o DATASUL não é executado enquanto esse
-procedimento não estiver finalizado: o START roda a VPS, encerra na ULIANA e
-NÃO abre o DATASUL nem envia nenhuma tecla para ele. Quando essa etapa for
+procedimento não estiver finalizado: o START roda a VPS, encerra após clicar
+3 vezes na ULIANA e NÃO abre o DATASUL nem envia nenhuma tecla para ele. Quando essa etapa for
 dada como finalizada, a entrada no DATASUL volta aqui — o motor continua
 pronto em `totvs/automacao.py` (AutomacaoTOTVS.importar_pedido), basta passá-lo
 em `entrar_no_datasul`. Nada mais precisa mudar: a ordem (VPS primeiro,

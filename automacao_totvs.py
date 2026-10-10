@@ -12,7 +12,8 @@ from totvs.automacao import AutomacaoTOTVS, main as main_totvs
 # duas partes (totvs/ e swprogramacao/ não se importam entre si).
 #
 # Hoje essa sequência roda SOMENTE o procedimento do SWPROGRAMACAO.rdp (abrir
-# a VPS, login do Windows, login do EDI, tela de parceiro e ULIANA) e para aí:
+# a VPS, login do Windows, login do EDI, tela de parceiro e ULIANA clicada
+# 3 vezes) e para aí:
 # o DATASUL não é executado enquanto essa etapa não estiver finalizada.
 from orquestrador import rodar_importacao
 

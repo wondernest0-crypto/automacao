@@ -1,9 +1,9 @@
 """Ações de tela por imagem (PyAutoGUI), compartilhadas pelas partes do projeto.
 
 A lógica de cada parte recebe um objeto com estes métodos: agora, esperar,
-localizar, clicar_duplo, colar e tecla. Em produção é a classe Tela; nos testes,
-um objeto falso. Os imports de pyautogui e pyperclip ficam dentro dos métodos,
-então importar este módulo não exige Windows nem tela.
+localizar, clicar, clicar_duplo, colar e tecla. Em produção é a classe Tela;
+nos testes, um objeto falso. Os imports de pyautogui e pyperclip ficam dentro
+dos métodos, então importar este módulo não exige Windows nem tela.
 
 Dois detalhes fazem diferença entre "a imagem existe" e "a imagem é achada":
 
@@ -173,6 +173,13 @@ class Tela:
                       else 'escala: não consegui medir')
         partes.append(garantir_dpi_aware())
         return '; '.join(partes)
+
+    def clicar(self, posicao, vezes=1, intervalo=0.7):
+        """Clica `vezes` no ponto (x, y), com pausa de `intervalo` s entre cliques."""
+        pag = self._pyautogui()
+        for _ in range(vezes):
+            pag.click(posicao.x, posicao.y)
+            time.sleep(intervalo)
 
     def clicar_duplo(self, caminho_imagem):
         """Duplo clique no centro da imagem. Devolve False se ela não estiver visível."""

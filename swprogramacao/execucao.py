@@ -7,10 +7,11 @@ o procedimento é exatamente o mesmo nos dois caminhos —
     1. confere se as 4 capturas existem em img/swprogramacao/;
     2. acha o SWPROGRAMACAO.rdp na área de trabalho;
     3. carrega o acesso da VPS (variáveis de ambiente ou DPAPI);
-    4. abre o .rdp, traz a janela da VPS para a frente;
+    4. abre o .rdp, aguarda 10 s e traz a janela da VPS para a frente;
     5. login do Windows (usuário, TAB, senha, ENTER);
     6. login do EDI (usuário, TAB, senha, ENTER) e espera 4 s para carregar;
-    7. espera a tela "Informe o parceiro" e procura a ULIANA — e para aí.
+    7. espera a tela "Informe o parceiro", procura a ULIANA, clica 3 vezes,
+       pausa e encerra com sucesso (a VPS continua aberta).
 
 O que muda entre os dois caminhos é somente quem recebe as mensagens
 (`registrar`) e o que fazer quando não existe acesso salvo: a linha de comando

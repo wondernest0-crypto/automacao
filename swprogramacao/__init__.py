@@ -1,7 +1,8 @@
 """Parte SWProgramação (VPS).
 
-Passo 1 (pronto para teste): abrir o SWPROGRAMACAO.rdp, fazer os logins, escolher
-a ULIANA e parar quando o programa carregar. Ver fluxo.py e __main__.py.
+Passo 1 (pronto para teste): abrir o SWPROGRAMACAO.rdp, fazer os logins, clicar
+3 vezes na ULIANA e encerrar com sucesso quando o programa carregar.
+Ver fluxo.py e __main__.py.
 Próximos passos (a definir): configurações e importação dos pedidos HONDA e GM.
 
 Esta parte não importa a parte TOTVS: a ligação entre as duas é feita pelo
