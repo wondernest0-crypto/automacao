@@ -1,9 +1,76 @@
-"""Validação das janelas nativas, sem depender da tela do Gerenciador de Tarefas."""
+"""Validação e ativação das janelas nativas, sem depender do Gerenciador de Tarefas."""
 import ctypes
 from ctypes import wintypes
+import importlib
 import os
 
 NAVEGADORES_EXE = {"msedge.exe", "chrome.exe", "firefox.exe", "iexplore.exe", "chromium.exe"}
+
+# Títulos (parciais) da janela da Conexão de Área de Trabalho Remota (mstsc), em
+# português e em inglês. A parte TOTVS mantém a própria lista em
+# totvs/automacao.py; esta é a lista compartilhada (core não importa as partes).
+TITULOS_RDP = (
+    "Conexão de Área de Trabalho Remota",
+    "Conexão de Area de Trabalho Remota",
+    "Conexao de Area de Trabalho Remota",
+    "Remote Desktop Connection",
+)
+
+
+def _pygetwindow():
+    """pygetwindow, ou None quando a biblioteca não está instalada."""
+    try:
+        return importlib.import_module("pygetwindow")
+    except Exception:
+        return None
+
+
+def janelas_por_titulo(titulos=TITULOS_RDP):
+    """Janelas abertas cujo título contém um dos trechos (maiúsculas ignoradas).
+
+    Sem pygetwindow, sem janelas ou com falha de consulta devolve lista vazia:
+    quem chama decide o que fazer, e o fluxo não quebra por causa disso.
+    """
+    gw = _pygetwindow()
+    if gw is None:
+        return []
+    achadas = []
+    vistos = set()
+    for titulo in titulos:
+        try:
+            janelas = gw.getWindowsWithTitle(titulo)
+        except Exception:
+            continue
+        for janela in janelas:
+            chave = getattr(janela, "_hWnd", None) or id(janela)
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+            achadas.append(janela)
+    return achadas
+
+
+def trazer_para_frente(janela, maximizar=False):
+    """Restaura e ativa a janela. True somente se ela ficou em primeiro plano.
+
+    A automação por imagem só enxerga o que está visível: com a janela
+    minimizada, atrás de outra ou parcialmente escondida, nenhuma captura casa.
+
+    `maximizar` vem desligado de propósito: mudar o tamanho da janela da VPS
+    muda a escala do conteúdo remoto e quebra a comparação com a captura, que
+    foi feita no tamanho em que a janela estava.
+    """
+    if not janela:
+        return False
+    try:
+        if getattr(janela, "isMinimized", False):
+            janela.restore()
+        if maximizar and not getattr(janela, "isMaximized", False):
+            janela.maximize()
+        janela.activate()
+    except Exception:
+        pass
+    return janela_em_primeiro_plano(getattr(janela, "_hWnd", None))
 
 
 def _apis():

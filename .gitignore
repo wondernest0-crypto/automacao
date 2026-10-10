@@ -15,6 +15,7 @@ assets/
 # Log do passo 1 da parte SWProgramação (não versionar)
 log_swprogramacao.txt
 
-# Capturas da VPS (SWProgramação): ficam só no PC de quem roda, fora do Git.
-# O .gitkeep continua versionado para a pasta existir.
-img/swprogramacao/*.png
+# Capturas da VPS (SWProgramação): SÃO versionadas (login.png, login_edi.png,
+# informe_parceiro.png e uliana.png). Elas descrevem a tela da VPS, que é a
+# mesma para todos; cada PC só precisa refazer a captura se a resolução ou a
+# escala de exibição mudar.

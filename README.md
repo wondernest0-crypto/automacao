@@ -54,31 +54,35 @@ Este passo abre a VPS, faz os dois logins e **procura a ULIANA na lista de parce
 
 1. Confere se as 4 capturas existem em `img/swprogramacao/`. Se faltar alguma, **para antes de abrir a VPS** e diz quais faltam (imagem ausente é arquivo ausente, não "não achei na tela").
 2. Abre o `SWPROGRAMACAO.rdp` da área de trabalho (igual a dar dois cliques). A busca cobre a pasta real da área de trabalho do Windows (API de pastas conhecidas), `Desktop`, `Área de Trabalho` e as versões dentro do OneDrive.
-3. A cada ciclo, **procura TODAS as imagens na tela antes de decidir o próximo passo**:
+3. Espera a janela da **Conexão de Área de Trabalho Remota** aparecer e a coloca em **primeiro plano**, sem redimensionar (redimensionar muda a escala do conteúdo remoto e quebra a comparação com a captura). A busca por imagem só enxerga o que está visível na tela: VPS minimizada ou atrás de outra janela nunca casa.
+4. Registra no log a **resolução, a escala de exibição e o tamanho em pixels de cada captura** — são os números que explicam "o arquivo existe mas nunca é achado". Captura maior que a tela atual é impossível de achar, e o log avisa.
+5. A cada ciclo, **procura TODAS as imagens na tela antes de decidir o próximo passo**, testando a confiança de 0.9 até 0.6 (o valor em que a imagem casou vai para o `--diagnostico`):
    - `login.png` (login do Windows, com o campo de usuário já em foco): usuário, TAB, senha, ENTER, e espera 3 s;
    - `login_edi.png` (login do EDI, "Usuário:"): usuário, TAB, senha, ENTER, e espera **4 s** (`ESPERA_APOS_ENTER_EDI`);
    - `informe_parceiro.png`: é o sinal de que os logins terminaram.
    Cada login é digitado **uma vez**. Se a senha estiver errada, o passo para com erro e não tenta de novo.
-4. Com `informe_parceiro.png` na tela, **procura `uliana.png`**. Achou: registra "ULIANA encontrada" e **termina** (não clica). Se não achar em 15 s, para com erro.
+6. Com `informe_parceiro.png` na tela, **procura `uliana.png`**. Achou: registra "ULIANA encontrada" e **termina** (não clica). Se não achar em 15 s, para com erro.
 
 **Antes de rodar:**
 
 - Coloque as 4 capturas em `img/swprogramacao/`: `login.png`, `login_edi.png`, `informe_parceiro.png` e `uliana.png`. Use capturas reais da tela da VPS, na mesma resolução e zoom do computador que vai rodar. Não use imagens ilustrativas. As instruções de captura de cada imagem estão em `img/swprogramacao/README.md`.
-- As capturas **não vão para o Git** (ficam só no PC de quem roda, pelo `.gitignore`).
+- As capturas **vão para o Git** (a tela da VPS é a mesma para todos). Recapture só se a resolução ou a escala de exibição do PC mudar.
 - Mantenha a área de transferência ativa no RDP (é o padrão do Windows). Os dados são colados, não digitados, para evitar problemas com `@` e outros símbolos.
-- Deixe a janela da VPS visível e não minimizada: a automação enxerga só o que está na tela.
+- Deixe a janela da VPS visível e não minimizada: a automação enxerga só o que está na tela. O fluxo já traz a janela para o primeiro plano depois de abrir o `.rdp`; se o log disser que não conseguiu, traga manualmente.
+- Deixe a **escala de exibição** do Windows igual à do PC onde as capturas foram feitas. O processo é marcado como *DPI aware* automaticamente; sem isso, com escala de 125%/150%, a tela é lida reduzida e nenhuma captura casa.
 - Ainda não existe `.exe` para esta parte. Rode pelo Python, como abaixo.
 
 **Como rodar** (na pasta do projeto):
 
 ```
 python -m swprogramacao --salvar-acesso     # guarda o acesso uma vez (DPAPI, no Windows)
-python -m swprogramacao --diagnostico       # confere o .rdp, as 4 imagens e o acesso salvo
+python -m swprogramacao --diagnostico       # confere o .rdp, a tela, as 4 imagens e o acesso salvo
 python -m swprogramacao                     # roda o passo 1 até achar a ULIANA
+python -m swprogramacao --confianca-minima 0.4   # diagnóstico: aceita casamento mais frouxo
 python -m swprogramacao --esquecer-acesso   # apaga o acesso salvo
 ```
 
-Com a VPS aberta, o `--diagnostico` mostra onde cada imagem foi encontrada. Se alguma aparecer como "não visível", a captura não corresponde à tela atual.
+Com a VPS aberta, o `--diagnostico` mostra a **pasta usada** (em `.exe` ela é a pasta do executável, não a do projeto), a **resolução e a escala da tela**, se a **janela da VPS está aberta**, o **tamanho em pixels de cada captura** e onde cada imagem foi encontrada (`visível em x,y (confiança 0.9)`). Se alguma aparecer como "não visível", a captura não corresponde à tela atual — veja "Imagem existe mas nunca é encontrada" na tabela de problemas.
 
 **Segurança:** o acesso (login do Windows e do EDI) pode ser guardado **uma vez** com `--salvar-acesso`, protegido pela DPAPI do Windows em `%LOCALAPPDATA%\AutomacaoTOTVS\acesso_sw.dpapi`, fora da pasta do projeto. Também pode ser passado por variáveis de ambiente (`SW_WINDOWS_LOGIN`, `SW_WINDOWS_SENHA`, `SW_EDI_LOGIN`, `SW_EDI_SENHA`), com prioridade sobre o arquivo salvo. Se não houver acesso salvo, ele é pedido no terminal. Não há senha em texto puro no código, nos arquivos do projeto ou no log, e nenhuma senha aparece no log. O registro fica em `log_swprogramacao.txt`, que é ignorado pelo Git.
 
@@ -326,6 +330,8 @@ para olhar em caso de problema.
 | START da aba "Importar Pedido" não faz nada | Abra `log_automacao.txt`: se o timestamp **não** mudou, o `Automacao_TOTVS.exe` nem iniciou (confira se ele está na mesma pasta da interface). Se mudou, o log mostra em qual passo parou e lista as janelas abertas — confira ali o título real da janela do DATASUL. |
 | O `CTRL+X` não abre a janela do lançador | O log mostra `A janela do lançador não apareceu com CTRL+X. Tentando CTRL+ALT+X...` — a automação já tenta o atalho alternativo sozinha. Se nenhum dos dois abrir, confira o atalho direto no TOTVS e ajuste `ATALHO_ABRIR_PROGRAMA` no topo de `totvs/automacao.py`. |
 | O texto digitou no lugar errado (não no TOTVS) | Significa que o DATASUL não era a janela ativa. O log traz `Foco não confirmado no DATASUL; nenhuma tecla será enviada.`; se o foco não for confirmado, a automação **para** e avisa na tela em vez de digitar às cegas. Clique na janela do DATASUL e clique em START de novo. |
+| SWProgramação: a imagem existe mas nunca é encontrada | Rode `python -m swprogramacao --diagnostico` e confira, nesta ordem: (1) a **janela da VPS está visível** — minimizada, atrás de outra ou em outro monitor nunca casa; (2) a **escala de exibição** do Windows é a mesma do PC que capturou (com 125%/150% a tela é lida reduzida; o projeto já marca o processo como *DPI aware*); (3) o **tamanho da captura** não é maior que a resolução listada; (4) teste `--confianca-minima 0.4` — se só casar frouxo, refaça a captura. |
+| SWProgramação: "Faltam imagens em img\swprogramacao/" | O arquivo não existe no caminho indicado. O `--diagnostico` mostra a pasta absoluta em uso: em `.exe` ela é a pasta do executável, não a do projeto. |
 | Importação para com "SWPROGRAMACAO.rdp não encontrado" | Coloque o arquivo na área de trabalho (valem Desktop, OneDrive/Desktop, Área de Trabalho e OneDrive/Área de Trabalho). Enquanto a VPS não abre, o DATASUL não é executado de propósito; se a sessão RDP já estiver aberta, o arquivo nem é procurado. |
 
 ---
@@ -362,8 +368,9 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 - Testar **Esquecer acesso** e confirmar que a senha não volta ao reabrir.
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
-- SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp` e as 4 imagens; depois, rodar até achar a ULIANA (`ULIANA encontrada` no log).
+- SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp`, mostrar resolução/escala/janela da VPS e achar as 4 imagens; depois, rodar até achar a ULIANA (`ULIANA encontrada` no log).
 - SWProgramação: sem as 4 capturas em `img/swprogramacao/`, o passo para **antes** de abrir a VPS e diz quais faltam; com `--salvar-acesso` (ou variáveis de ambiente), rodar de novo não deve pedir senha.
+- SWProgramação: ao rodar, o log deve trazer `Janela da VPS em primeiro plano` e a linha `Tela: resolução ...; escala ...` com o tamanho em pixels de cada captura.
 - Importação: ao clicar em START, o log deve mostrar a abertura do `SWPROGRAMACAO.rdp` ANTES da busca pelo DATASUL. Com uma sessão RDP já aberta, nada deve ser reaberto; sem o `.rdp` (e sem sessão aberta), o DATASUL não deve ser executado.
 
 Instale as dependências atualizadas e execute `compilar.bat` novamente para

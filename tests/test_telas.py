@@ -104,5 +104,154 @@ class TestTela(unittest.TestCase):
         self.assertIn('indisponível', str(contexto.exception))
 
 
+class TestDpiAware(unittest.TestCase):
+    """A causa clássica de 'a imagem existe mas nunca é achada'."""
+
+    def setUp(self):
+        telas._ESTADO_DPI = None
+        self.addCleanup(setattr, telas, '_ESTADO_DPI', None)
+
+    def test_fora_do_windows_nao_faz_nada(self):
+        with patch.object(telas.os, 'name', 'posix'):
+            resultado = telas.garantir_dpi_aware()
+        self.assertIn('não se aplica', resultado)
+
+    def test_no_windows_usa_shcore_per_monitor(self):
+        ctypes_falso = MagicMock(name='ctypes')
+        with patch.dict(sys.modules, {'ctypes': ctypes_falso}), \
+                patch.object(telas.os, 'name', 'nt'):
+            resultado = telas.garantir_dpi_aware()
+        ctypes_falso.windll.shcore.SetProcessDpiAwareness.assert_called_once_with(2)
+        self.assertIn('DPI aware', resultado)
+
+    def test_sem_shcore_cai_para_set_process_dpi_aware(self):
+        ctypes_falso = MagicMock(name='ctypes')
+        ctypes_falso.windll.shcore.SetProcessDpiAwareness.side_effect = OSError('sem shcore')
+        with patch.dict(sys.modules, {'ctypes': ctypes_falso}), \
+                patch.object(telas.os, 'name', 'nt'):
+            resultado = telas.garantir_dpi_aware()
+        ctypes_falso.windll.user32.SetProcessDPIAware.assert_called_once_with()
+        self.assertIn('SetProcessDPIAware', resultado)
+
+    def test_falha_nunca_estoura_e_fica_registrada(self):
+        with patch.object(telas, '_ESTADO_DPI', None), \
+                patch.object(telas.os, 'name', 'nt'), \
+                patch.dict(sys.modules, {'ctypes': None}):
+            resultado = telas.garantir_dpi_aware()
+        self.assertIn('NÃO consegui marcar como DPI aware', resultado)
+
+    def test_resultado_fica_em_cache(self):
+        ctypes_falso = MagicMock(name='ctypes')
+        with patch.dict(sys.modules, {'ctypes': ctypes_falso}), \
+                patch.object(telas.os, 'name', 'nt'):
+            telas.garantir_dpi_aware()
+            telas.garantir_dpi_aware()
+        self.assertEqual(ctypes_falso.windll.shcore.SetProcessDpiAwareness.call_count, 1)
+
+    def test_criar_tela_marca_o_processo_antes_da_primeira_busca(self):
+        with patch.object(telas, 'garantir_dpi_aware', return_value='ok') as marcar:
+            telas.Tela()
+        marcar.assert_called_once_with()
+
+    def test_escala_dpi_fora_do_windows_devolve_none(self):
+        with patch.object(telas.os, 'name', 'posix'):
+            self.assertIsNone(telas.escala_dpi())
+
+    def test_escala_dpi_no_windows_vem_de_get_dpi_for_system(self):
+        ctypes_falso = MagicMock(name='ctypes')
+        ctypes_falso.windll.user32.GetDpiForSystem.return_value = 144  # 150%
+        with patch.dict(sys.modules, {'ctypes': ctypes_falso}), \
+                patch.object(telas.os, 'name', 'nt'):
+            self.assertEqual(telas.escala_dpi(), 1.5)
+
+
+class TestFaixasDeConfianca(unittest.TestCase):
+    def test_desce_da_padrao_ate_a_minima(self):
+        self.assertEqual(telas.Tela()._faixas_de_confianca(), [0.9, 0.75, 0.6])
+
+    def test_minima_igual_a_padrao_testa_so_uma(self):
+        self.assertEqual(telas.Tela(confianca=0.8, confianca_minima=0.8)._faixas_de_confianca(),
+                         [0.8])
+
+    def test_minima_acima_da_padrao_ainda_testa_a_padrao(self):
+        self.assertEqual(telas.Tela(confianca=0.5, confianca_minima=0.9)._faixas_de_confianca(),
+                         [0.5])
+
+
+class TestLocalizarComQuedaDeConfianca(unittest.TestCase):
+    def setUp(self):
+        self.pag = MagicMock(name='pyautogui')
+        patcher = patch.dict(sys.modules, {'pyautogui': self.pag})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def confiancas_usadas(self):
+        return [c.kwargs['confidence'] for c in self.pag.locateCenterOnScreen.call_args_list]
+
+    def test_para_na_primeira_confianca_que_casar(self):
+        self.pag.locateCenterOnScreen.side_effect = [None, Ponto(5, 6)]
+        tela = telas.Tela()
+        self.assertEqual(tela.localizar('a.png'), Ponto(5, 6))
+        self.assertEqual(tela.ultima_confianca, 0.75)
+        self.assertEqual(self.confiancas_usadas(), [0.9, 0.75])
+
+    def test_sem_casar_em_nenhuma_devolve_none_e_limpa_a_confianca(self):
+        self.pag.locateCenterOnScreen.return_value = None
+        tela = telas.Tela()
+        tela.ultima_confianca = 0.9
+        self.assertIsNone(tela.localizar('a.png'))
+        self.assertIsNone(tela.ultima_confianca)
+        self.assertEqual(self.confiancas_usadas(), [0.9, 0.75, 0.6])
+
+    def test_imagem_nao_encontrada_nas_tres_tenta_devolve_none(self):
+        self.pag.locateCenterOnScreen.side_effect = ImageNotFoundException('x')
+        self.assertIsNone(telas.Tela().localizar('a.png'))
+        self.assertEqual(self.confiancas_usadas(), [0.9, 0.75, 0.6])
+
+
+class TestMedidasParaDiagnostico(unittest.TestCase):
+    def setUp(self):
+        self.pag = MagicMock(name='pyautogui')
+        patcher = patch.dict(sys.modules, {'pyautogui': self.pag})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_tamanho_tela_vem_do_pyautogui(self):
+        self.pag.size.return_value = (1920, 1080)
+        self.assertEqual(telas.Tela().tamanho_tela(), (1920, 1080))
+
+    def test_tamanho_tela_que_falha_devolve_none(self):
+        self.pag.size.side_effect = OSError('sem tela')
+        self.assertIsNone(telas.Tela().tamanho_tela())
+
+    def test_tamanho_imagem_vem_do_pillow(self):
+        pillow = MagicMock(name='PIL.Image')
+        pillow.open.return_value.__enter__.return_value.size = (812, 344)
+        with patch.dict(sys.modules, {'PIL.Image': pillow}):
+            self.assertEqual(telas.Tela().tamanho_imagem('a.png'), (812, 344))
+        pillow.open.assert_called_once_with('a.png')
+
+    def test_tamanho_imagem_ilegivel_devolve_none(self):
+        with patch.dict(sys.modules, {'PIL.Image': None}):
+            self.assertIsNone(telas.Tela().tamanho_imagem('a.png'))
+
+    def test_descricao_junta_resolucao_escala_e_dpi(self):
+        self.pag.size.return_value = (1920, 1080)
+        with patch.object(telas, 'escala_dpi', return_value=1.5), \
+                patch.object(telas, 'garantir_dpi_aware', return_value='DPI aware (shcore)'):
+            descricao = telas.Tela().descricao_tela()
+        self.assertIn('resolução 1920x1080', descricao)
+        self.assertIn('escala 150%', descricao)
+        self.assertIn('DPI aware (shcore)', descricao)
+
+    def test_descricao_diz_quando_nao_deu_para_medir(self):
+        self.pag.size.side_effect = OSError('sem tela')
+        with patch.object(telas, 'escala_dpi', return_value=None), \
+                patch.object(telas, 'garantir_dpi_aware', return_value='sem DPI'):
+            descricao = telas.Tela().descricao_tela()
+        self.assertIn('resolução: não consegui medir', descricao)
+        self.assertIn('escala: não consegui medir', descricao)
+
+
 if __name__ == '__main__':
     unittest.main()
