@@ -110,13 +110,15 @@ Prefere não digitar comando? Há dois atalhos na raiz: **`salvar_acesso_sw.bat`
 (guarda o acesso; rode uma vez em cada conta Windows) e **`diagnostico_sw.bat`**
 (conferência completa), que abrem, fazem o serviço e esperam você ler o resultado.
 
-> O START da interface (e o `.exe`) **não tem terminal para pedir senha**. Por
-> isso, se não houver acesso salvo, a sequência para antes de abrir a VPS e
-> diz para rodar `--salvar-acesso` — é o `salvar_acesso_sw.bat` que resolve.
+> O START da interface (e o `.exe`) **não precisa de senhas** quando o
+> `SWPROGRAMACAO.rdp` já estiver com as credenciais salvas no Windows
+> (comportamento padrão da conexão). Caso a sua VPS não salve as credenciais na
+> conexão e exija digitação manual, o acesso pode ser salvo uma vez com
+> `--salvar-acesso` — o `salvar_acesso_sw.bat` resolve isso.
 
 Com a VPS aberta, o `--diagnostico` mostra a **pasta usada** (em `.exe` ela é a pasta do executável, não a do projeto), a **resolução e a escala da tela**, se a **janela da VPS está aberta**, o **tamanho em pixels de cada captura** e onde cada imagem foi encontrada (`visível em x,y (confiança 0.9)`). Se alguma aparecer como "não visível", a captura não corresponde à tela atual — veja "Imagem existe mas nunca é encontrada" na tabela de problemas.
 
-**Segurança:** o acesso (login do Windows e do EDI) pode ser guardado **uma vez** com `--salvar-acesso`, protegido pela DPAPI do Windows em `%LOCALAPPDATA%\AutomacaoTOTVS\acesso_sw.dpapi`, fora da pasta do projeto. Também pode ser passado por variáveis de ambiente (`SW_WINDOWS_LOGIN`, `SW_WINDOWS_SENHA`, `SW_EDI_LOGIN`, `SW_EDI_SENHA`), com prioridade sobre o arquivo salvo. Se não houver acesso salvo, ele é pedido no terminal. Não há senha em texto puro no código, nos arquivos do projeto ou no log, e nenhuma senha aparece no log. O registro fica em `log_swprogramacao.txt`, que é ignorado pelo Git.
+**Segurança:** se configurado, o acesso (login do Windows e do EDI) pode ser guardado **uma vez** com `--salvar-acesso`, protegido pela DPAPI do Windows em `%LOCALAPPDATA%\AutomacaoTOTVS\acesso_sw.dpapi`, fora da pasta do projeto. Também pode ser passado por variáveis de ambiente (`SW_WINDOWS_LOGIN`, `SW_WINDOWS_SENHA`, `SW_EDI_LOGIN`, `SW_EDI_SENHA`), com prioridade sobre o arquivo salvo. Se não houver acesso configurado, a automação utiliza as credenciais já salvas na conexão RDP do Windows. Não há senha em texto puro no código, nos arquivos do projeto ou no log, e nenhuma senha aparece no log. O registro fica em `log_swprogramacao.txt`, que é ignorado pelo Git.
 
 **Se parar:** o terminal e o log dizem em qual etapa parou (imagem faltando, login do Windows, login do EDI, ULIANA não encontrada ou tempo esgotado).
 
@@ -144,12 +146,11 @@ grande e vermelho **START**. Ao clicar, a interface chama
 1. **Abre a VPS:** procura `SWPROGRAMACAO.rdp` na área de trabalho (Desktop,
    OneDrive/Desktop, Área de Trabalho e OneDrive/Área de Trabalho) e o abre
    igual a dar dois cliques; depois traz a janela da VPS para o primeiro plano.
-2. **Faz o procedimento da VPS:** aguarda 10 s após abrir o `.rdp`, login do
-   Windows (usuário, TAB, senha, ENTER), login do EDI (usuário, TAB, senha,
-   ENTER), 4 s para carregar, espera a tela “Informe o parceiro”, procura a
-   ULIANA e clica nela 3 vezes. É exatamente o mesmo procedimento
-   de `python -m swprogramacao` (seção acima). Sem o `.rdp`, sem acesso salvo
-   ou com alguma captura faltando, ele para **antes** de abrir a VPS.
+2. **Faz o procedimento da VPS:** aguarda 10 s após abrir o `.rdp`, utiliza as
+   credenciais já salvas na conexão RDP (ou realiza os logins caso configurados),
+   espera a tela “Informe o parceiro” (ou reconhece se a ULIANA já estiver
+   visível na tela), procura a ULIANA e clica nela 3 vezes.
+   Sem o `.rdp` ou com captura faltando, ele para **antes** de abrir a VPS.
 3. **Encerra e reabre a interface**, registrando no log que o DATASUL está
    desligado. Se qualquer etapa falhar, o aviso aparece na tela e o motivo
    exato fica em `log_automacao.txt`.

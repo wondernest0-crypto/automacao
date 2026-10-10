@@ -24,8 +24,9 @@ from core import telas
 from swprogramacao import acessos, fluxo, rdp
 
 
-def _acesso_ou_falha(registrar, pedir_acesso):
-    """Acesso salvo (ou pedido), ou FalhaFluxo com o que fazer a seguir."""
+def _obter_acesso(registrar, pedir_acesso):
+    """Acesso salvo (ou pedido). Se não houver e não houver prompt, devolve None
+    (a conexão RDP já possui as credenciais salvas no Windows)."""
     try:
         acesso = acessos.carregar_acesso()
     except acessos.ErroAcesso as erro:
@@ -35,35 +36,34 @@ def _acesso_ou_falha(registrar, pedir_acesso):
         registrar('Acesso carregado (variáveis de ambiente ou DPAPI); '
                   'nenhum valor é exibido no log.')
         return acesso
-    if pedir_acesso is None:
-        # Sem terminal (interface/.exe): pedir senha aqui não seria lido por
-        # ninguém, então o procedimento para antes de abrir a VPS.
-        raise fluxo.FalhaFluxo(
-            'não há acesso da VPS salvo. Salve uma vez com '
-            '"python -m swprogramacao --salvar-acesso" (a senha fica protegida '
-            'pelo Windows, fora da pasta do projeto) ou defina as variáveis '
-            'SW_WINDOWS_LOGIN, SW_WINDOWS_SENHA, SW_EDI_LOGIN e SW_EDI_SENHA.')
-    acesso = pedir_acesso()
-    if not all([acesso.windows_login, acesso.windows_senha,
-                acesso.edi_login, acesso.edi_senha]):
-        raise fluxo.FalhaFluxo('Preencha todos os campos de acesso. Nada foi feito.')
-    return acesso
+    if pedir_acesso is not None:
+        acesso = pedir_acesso()
+        if not all([acesso.windows_login, acesso.windows_senha,
+                    acesso.edi_login, acesso.edi_senha]):
+            raise fluxo.FalhaFluxo('Preencha todos os campos de acesso. Nada foi feito.')
+        return acesso
+    registrar('Acesso da VPS: credenciais salvas na conexão RDP '
+              '(não requer digitação de login ou senha).')
+    return None
+
+
+_acesso_ou_falha = _obter_acesso
 
 
 def executar_passo_um(registrar, pedir_acesso=None, confianca_minima=None, tela=None):
     """Roda o procedimento do SWPROGRAMACAO.rdp. Devolve fluxo.ENCONTRADA.
 
     Levanta `fluxo.FalhaFluxo` (com a mensagem pronta para o usuário) quando
-    algum preparo falha — imagem ausente, .rdp não encontrado ou acesso
-    faltando — e também quando o fluxo não chega à ULIANA. Nenhuma falha de
-    preparo abre a VPS.
+    algum preparo falha — imagem ausente ou .rdp não encontrado — e também
+    quando o fluxo não chega à ULIANA. Nenhuma falha de preparo abre a VPS.
     """
     fluxo.validar_imagens()
     try:
         caminho = rdp.caminho_rdp()
     except rdp.RdpNaoEncontrado as erro:
         raise fluxo.FalhaFluxo(str(erro)) from erro
-    acesso = _acesso_ou_falha(registrar, pedir_acesso)
+    acesso = _obter_acesso(registrar, pedir_acesso)
+
     if tela is None:
         tela = (telas.Tela() if confianca_minima is None
                 else telas.Tela(confianca_minima=confianca_minima))
