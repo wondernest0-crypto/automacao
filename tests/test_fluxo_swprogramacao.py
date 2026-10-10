@@ -396,6 +396,32 @@ class TestPrepararVpsNoFluxo(unittest.TestCase):
         self.assertEqual(resultado, fluxo.ENCONTRADA)
         self.assertEqual(abertura, [1])
 
+    def test_sem_credenciais_apenas_abre_rdp_e_clica_uliana(self):
+        # Quando a conexão RDP já possui as credenciais salvas no Windows,
+        # o fluxo roda com acesso=None: nenhuma credencial é colada e a ULIANA
+        # é clicada 3 vezes.
+        tela = TelaFalsa({IMG_INFORME, IMG_ULIANA})
+        resultado, mensagens, abertura = executar(tela, acesso=None)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+        self.assertEqual(abertura, [1])
+        colagens = [acao for acao in tela.acoes if acao[0] == 'colar']
+        self.assertEqual(colagens, [], 'nenhuma credencial deve ser digitada/colada')
+        self.assertEqual(tela.acoes, [
+            ('esperar', fluxo.ESPERA_APOS_ABRIR_RDP),
+            ('clicar', fluxo.CLIQUES_ULIANA),
+            ('esperar', fluxo.PAUSA_APOS_ULIANA),
+        ])
+        self.assertTrue(any('ULIANA encontrada' in m for m in mensagens))
+
+    def test_sem_credenciais_uliana_direta_na_tela(self):
+        # Se a VPS já abre direto com a ULIANA visível, reconhece e clica
+        tela = TelaFalsa({IMG_ULIANA})
+        resultado, mensagens, abertura = executar(tela, acesso=None)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+        self.assertEqual(abertura, [1])
+        self.assertEqual([a for a in tela.acoes if a[0] == 'colar'], [])
+        self.assertTrue(any('ULIANA já está visível' in m for m in mensagens))
+
 
 if __name__ == '__main__':
     unittest.main()

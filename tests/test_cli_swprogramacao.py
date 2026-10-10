@@ -251,6 +251,17 @@ class TestCli(unittest.TestCase):
             preparar()
         trazer.assert_called_once()
 
+    def test_executar_passo_um_sem_acesso_salvo_e_sem_terminal_nao_falha(self):
+        # Quando chamado pela interface (pedir_acesso=None) e sem credenciais salvas,
+        # o fluxo prossegue com acesso=None para usar as credenciais já salvas no RDP.
+        from swprogramacao import execucao
+        mensagens = []
+        resultado = execucao.executar_passo_um(mensagens.append, pedir_acesso=None)
+        self.assertEqual(resultado, fluxo.ENCONTRADA)
+        _, acesso, _ = self.executar.call_args.args
+        self.assertIsNone(acesso, 'acesso deve ser None quando não há credenciais salvas')
+        self.assertTrue(any('salvas na conexão RDP' in m for m in mensagens))
+
 
 class TestConfiancaMinima(unittest.TestCase):
     """--confianca-minima é a alavanca para uma captura que só casa frouxa."""

@@ -72,7 +72,10 @@ Nessa ordem:
 
 ## Acesso (login e senha)
 
-As credenciais não ficam nesta pasta. Guarde uma vez com:
+Se a sua conexão RDP (`SWPROGRAMACAO.rdp`) já tem as credenciais salvas no Windows,
+**não é necessário configurar nenhum login ou senha**: a automação abrirá a VPS diretamente.
+
+Caso a VPS exija digitação manual, o acesso pode ser salvo uma vez com:
 
 ```
 python -m swprogramacao --salvar-acesso

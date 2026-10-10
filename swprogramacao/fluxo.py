@@ -201,20 +201,23 @@ def executar_ate_uliana(tela, acesso, registrar, abrir_rdp, preparar_vps=None):
     ultimo_log = tela.agora()
 
     while True:
-        # Ordem de procura: login.png; se não achar, login_edi.png; se não
-        # achar, informe_parceiro.png. Age na primeira que aparecer.
-        if not preenchido['windows'] and tela.localizar(IMG_LOGIN) is not None:
+        # Se houver credenciais e as telas de login forem detectadas, preenche:
+        if acesso is not None and not preenchido['windows'] and tela.localizar(IMG_LOGIN) is not None:
             registrar('Login do Windows encontrado (login.png): preenchendo usuário e senha.')
             _preencher(tela, acesso.windows_login, acesso.windows_senha,
                        ESPERA_APOS_ENTER_WINDOWS)
             preenchido['windows'] = True
             continue
-        if not preenchido['edi'] and tela.localizar(IMG_LOGIN_EDI) is not None:
+        if acesso is not None and not preenchido['edi'] and tela.localizar(IMG_LOGIN_EDI) is not None:
             registrar('Login do EDI encontrado (login_edi.png): preenchendo usuário e senha.')
             _preencher(tela, acesso.edi_login, acesso.edi_senha, ESPERA_APOS_ENTER_EDI)
             preenchido['edi'] = True
             continue
         if tela.localizar(IMG_INFORME) is not None:
+            registrar('Tela de parceiros encontrada (informe_parceiro.png).')
+            break
+        if tela.localizar(IMG_ULIANA) is not None:
+            registrar('ULIANA já está visível na tela (uliana.png).')
             break
         if tela.agora() > prazo:
             raise FalhaFluxo(
@@ -224,13 +227,18 @@ def executar_ate_uliana(tela, acesso, registrar, abrir_rdp, preparar_vps=None):
                 'feitas nesta mesma resolução e escala de exibição '
                 '(python -m swprogramacao --diagnostico mostra os tamanhos).')
         if tela.agora() - ultimo_log >= INTERVALO_LOG:
-            registrar('Procurando na tela por login.png, login_edi.png e '
-                      'informe_parceiro.png (nessa ordem)... nada visível ainda. '
-                      'A janela da VPS tem de estar visível (não minimizada nem '
-                      'coberta) e a captura feita nesta mesma resolução e escala.')
+            if acesso is not None:
+                registrar('Procurando na tela por login.png, login_edi.png e '
+                          'informe_parceiro.png (nessa ordem)... nada visível ainda. '
+                          'A janela da VPS tem de estar visível (não minimizada nem '
+                          'coberta) e a captura feita nesta mesma resolução e escala.')
+            else:
+                registrar('Procurando na tela por informe_parceiro.png e uliana.png... '
+                          'nada visível ainda. A janela da VPS tem de estar visível '
+                          '(não minimizada nem coberta) e a captura feita nesta mesma '
+                          'resolução e escala.')
             ultimo_log = tela.agora()
         tela.esperar(INTERVALO)
-    registrar('Tela de parceiros encontrada (informe_parceiro.png).')
 
     # Achou a ULIANA: clica CLIQUES_ULIANA vezes, pausa e encerra com sucesso.
     # A VPS permanece aberta com a ULIANA carregada.
