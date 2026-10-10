@@ -1,6 +1,25 @@
 """Parte SWProgramação, passo 1: abrir a VPS, fazer os logins e procurar a ULIANA.
 
-Sequência combinada:
+Procedimento do SWPROGRAMACAO.rdp, na ordem em que ele acontece na tela da
+VPS (o campo de usuário já vem com o foco, por isso não se clica em nada):
+
+    login.png (tela de login do Windows)
+        -> cola o usuário do Windows, TAB, cola a senha, ENTER
+        -> espera ESPERA_APOS_ENTER_WINDOWS (3 s)
+    login_edi.png (tela de login do EDI)
+        -> cola o usuário do EDI, TAB, cola a senha, ENTER
+        -> espera ESPERA_APOS_ENTER_EDI (4 s) para a tela carregar
+    informe_parceiro.png ("Informe o parceiro")
+        -> sinal de que os dois logins terminaram
+    uliana.png
+        -> procura a ULIANA na lista e encerra (não clica nela)
+
+Este passo é a PRIMEIRA etapa da sequência: o DATASUL só é executado depois
+que ele termina (a ordem fica em orquestrador.py, na raiz). Enquanto o
+procedimento do RDP estiver em construção, a sequência para aqui e o DATASUL
+não é chamado.
+
+Detalhes da execução:
   1. Confere se as 4 capturas existem em img/swprogramacao/ (falha antes de
      abrir a VPS se faltar alguma — imagem ausente não é "não achou na tela").
   2. Abre o SWPROGRAMACAO.rdp (igual a dar dois cliques nele).

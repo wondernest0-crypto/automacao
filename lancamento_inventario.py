@@ -578,7 +578,7 @@ class LancamentoInventario:
 
         tk.Label(
             parent,
-            text="Configure login e senha na aba Acesso TOTVS e clique em START.",
+            text="O START executa o procedimento da VPS (SWPROGRAMACAO.rdp).",
             font=('Arial', 11),
             fg='#b2bec3',
             bg='#1a1a2e'
@@ -602,12 +602,10 @@ class LancamentoInventario:
             frame_passos,
             text=(
                 "1) Abre a VPS (SWPROGRAMACAO.rdp da área de trabalho)\n"
-                "2) Procura o DATASUL; se ausente, inicia pelo Edge\n"
-                "3) Abre/traz o \"DATASUL Interactive\" para a frente\n"
-                "4) CTRL+X  ->  abre a janela do lançador de programas\n"
-                "5) Digita ESPD0001 e tecla ENTER\n"
-                "6) 1x TAB -> ENTER; depois 5x TAB -> ENTER -> cola a pasta GM -> ENTER\n"
-                "7) 4x TAB  ->  seta ↓  ->  seta ↑  ->  clica Abrir  ->  clica Executar"
+                "2) Login do Windows da VPS e login do EDI\n"
+                "3) Espera a tela \"Informe o parceiro\" e carrega (4 s)\n"
+                "4) Procura a ULIANA na lista e encerra\n"
+                "5) DATASUL: não entra agora (volta quando a VPS estiver ok)"
             ),
             font=('Arial', 9),
             fg='#dfe6e9',
@@ -617,7 +615,8 @@ class LancamentoInventario:
 
         tk.Label(
             parent,
-            text="A tela fica só com o TOTVS durante a importação (as janelas são minimizadas).",
+            text="Hoje o START roda SOMENTE a VPS: o DATASUL entra só quando este\n"
+                 "procedimento estiver finalizado. Acompanhe em log_automacao.txt.",
             font=('Arial', 8, 'italic'),
             fg='#7f8c8d',
             bg='#1a1a2e'

@@ -8,7 +8,7 @@ log detalhado de execução.
 
 ## 🧩 Como funciona (lógica)
 
-O sistema tem **duas partes** que se chamam uma à outra:
+O sistema é dividido em **partes que não se importam entre si**; quem as liga fica na raiz:
 
 1. **`lancamento_inventario.py`** — Interface gráfica (Tkinter).
    É por aqui que tudo começa. Serve para lançar/consultar itens, cadastrar
@@ -17,13 +17,24 @@ O sistema tem **duas partes** que se chamam uma à outra:
    Abre o TOTVS no navegador (Edge), lê a planilha `RELATORIO_INVENTARIO.xlsx`,
    ajusta o estoque de cada item (entrada/saída) e, ao terminar, reabre a
    interface gráfica.
+3. **`orquestrador.py`** — Define a ordem entre as partes: **VPS (SWProgramação)
+   primeiro, DATASUL (TOTVS) depois**. É quem o START chama hoje.
 
-Fluxo resumido:
+Fluxo resumido (ajuste de estoque):
 
 ```
 lancamento_inventario.py  --(clicar "Iniciar Automação")-->  automacao_totvs.py
         ↑                                                            |
         └----------------------(ao concluir)-------------------------┘
+```
+
+Fluxo do START (aba Importar Pedido HONDA & GM), decidido pelo orquestrador:
+
+```
+lancamento_inventario.py --(START)--> automacao_totvs.py importar --> orquestrador.py
+                                                                          |
+                        1º SWProgramação: SWPROGRAMACAO.rdp -> logins -> ULIANA
+                        2º DATASUL  (DESLIGADO hoje: volta quando o 1º estiver finalizado)
 ```
 
 ---
@@ -37,10 +48,11 @@ O código está separado em partes, para que cada uma evolua sem mexer nas outra
 | `totvs/` | **TOTVS** | Ajuste de estoque, importação ESPD0001 (aba Importar Pedido HONDA & GM, por enquanto) e acesso ao TOTVS pelo Edge. |
 | `swprogramacao/` | **SWProgramação** | Acesso à VPS. **Passo 1 pronto para teste** (abre a VPS e para na ULIANA carregada). Configurações e pedidos HONDA e GM: *em construção.* |
 | `core/` | Compartilhado | Caminhos do projeto (modo .py e .exe), ações de tela por imagem, validação de janelas do Windows e busca/abertura do `.rdp` da área de trabalho. |
+| `orquestrador.py` | **Sequência (raiz)** | Único lugar que liga as duas partes: define que a **VPS (SWProgramação) vem primeiro e o DATASUL (TOTVS) só depois**. Hoje a sequência tem só a etapa da VPS. |
 
-Fluxo previsto: primeiro a parte **SWProgramação** (VPS: pedido HONDA e depois GM); em seguida, a parte **TOTVS**. A interface (`lancamento_inventario.py`) fica na raiz e será o ponto que liga as partes.
+Fluxo previsto: primeiro a parte **SWProgramação** (VPS: pedido HONDA e depois GM); em seguida, a parte **TOTVS**. A ordem vive em `orquestrador.py`, na raiz — as partes não se importam umas às outras (`tests/test_limites_partes.py` garante isso).
 
-No fluxo de importação, o START já respeita essa ordem: **abre o `SWPROGRAMACAO.rdp` da área de trabalho antes de executar o DATASUL** (sessão RDP já aberta é reutilizada; sem o `.rdp` e sem sessão aberta, o DATASUL não é executado).
+**Regra da vez:** o DATASUL **não** é executado enquanto todo o procedimento do `SWPROGRAMACAO.rdp` (abrir a VPS, login do Windows, login do EDI, tela “Informe o parceiro” e ULIANA) não terminar. Essa etapa ainda está em construção, então o START da aba de importação roda **somente a VPS** e encerra — não envia nenhuma tecla ao DATASUL. Quando ela for dada como finalizada, a entrada no DATASUL volta ao orquestrador, que já garante a ordem.
 
 `lancamento_inventario.py` e `automacao_totvs.py` continuam na raiz porque o `compilar.bat`, os `.spec` e o workflow usam esses nomes. O teste `tests/test_limites_partes.py` impede que as partes importem umas às outras.
 
@@ -49,6 +61,17 @@ No fluxo de importação, o START já respeita essa ordem: **abre o `SWPROGRAMAC
 ## 🖥️ SWProgramação (VPS): passo 1
 
 Este passo abre a VPS, faz os dois logins e **procura a ULIANA na lista de parceiros**. Quando a ULIANA é encontrada, o passo termina (não clica nela). Ainda não faz configurações nem importação de pedidos.
+
+**Ele é a primeira etapa da sequência do START**, e é o mesmo procedimento nos dois caminhos: `python -m swprogramacao` (com terminal) e o botão START da interface (sem terminal), que passa por `orquestrador.py`. Enquanto este procedimento não estiver finalizado, o DATASUL não é executado (veja “Partes do projeto” acima).
+
+O procedimento na tela da VPS, na ordem (o campo de usuário já vem com o foco, por isso nada é clicado):
+
+```
+login.png             -> usuário do Windows, TAB, senha, ENTER  (espera 3 s)
+login_edi.png         -> usuário do EDI, TAB, senha, ENTER      (espera 4 s para carregar)
+informe_parceiro.png  -> tela “Informe o parceiro”: os logins terminaram
+uliana.png            -> procura a ULIANA na lista e encerra (não clica)
+```
 
 **O que ele faz, em ordem:**
 
@@ -82,6 +105,14 @@ python -m swprogramacao --confianca-minima 0.4   # diagnóstico: aceita casament
 python -m swprogramacao --esquecer-acesso   # apaga o acesso salvo
 ```
 
+Prefere não digitar comando? Há dois atalhos na raiz: **`salvar_acesso_sw.bat`**
+(guarda o acesso; rode uma vez em cada conta Windows) e **`diagnostico_sw.bat`**
+(conferência completa), que abrem, fazem o serviço e esperam você ler o resultado.
+
+> O START da interface (e o `.exe`) **não tem terminal para pedir senha**. Por
+> isso, se não houver acesso salvo, a sequência para antes de abrir a VPS e
+> diz para rodar `--salvar-acesso` — é o `salvar_acesso_sw.bat` que resolve.
+
 Com a VPS aberta, o `--diagnostico` mostra a **pasta usada** (em `.exe` ela é a pasta do executável, não a do projeto), a **resolução e a escala da tela**, se a **janela da VPS está aberta**, o **tamanho em pixels de cada captura** e onde cada imagem foi encontrada (`visível em x,y (confiança 0.9)`). Se alguma aparecer como "não visível", a captura não corresponde à tela atual — veja "Imagem existe mas nunca é encontrada" na tabela de problemas.
 
 **Segurança:** o acesso (login do Windows e do EDI) pode ser guardado **uma vez** com `--salvar-acesso`, protegido pela DPAPI do Windows em `%LOCALAPPDATA%\AutomacaoTOTVS\acesso_sw.dpapi`, fora da pasta do projeto. Também pode ser passado por variáveis de ambiente (`SW_WINDOWS_LOGIN`, `SW_WINDOWS_SENHA`, `SW_EDI_LOGIN`, `SW_EDI_SENHA`), com prioridade sobre o arquivo salvo. Se não houver acesso salvo, ele é pedido no terminal. Não há senha em texto puro no código, nos arquivos do projeto ou no log, e nenhuma senha aparece no log. O registro fica em `log_swprogramacao.txt`, que é ignorado pelo Git.
@@ -93,19 +124,39 @@ Com a VPS aberta, o `--diagnostico` mostra a **pasta usada** (em `.exe` ela é a
 ## 🚗 Importar Pedido HONDA & GM (aba dedicada)
 
 A interface tem uma segunda aba, **"Importar Pedido HONDA & GM"**, com um botão
-grande e vermelho **START**. Ao clicar, roda o fluxo de importação
-(`automacao_totvs.py importar`):
+grande e vermelho **START**. Ao clicar, a interface chama
+`automacao_totvs.py importar`, que entrega a sequência ao `orquestrador.py`.
 
-1. **Abre a VPS antes de executar o DATASUL:** procura
-   `SWPROGRAMACAO.rdp` na área de trabalho (Desktop, OneDrive/Desktop,
-   Área de Trabalho e OneDrive/Área de Trabalho) e o abre igual a dar dois
-   cliques. Se já houver uma Conexão de Área de Trabalho Remota aberta, a
-   sessão é reutilizada (nada é reaberto). Depois, aguarda
-   `TEMPO_ESPERA_RDP` para a VPS carregar. **Sem o `.rdp` e sem sessão
-   aberta, o fluxo para com aviso e o DATASUL não é executado.**
-2. Procura primeiro uma janela DATASUL disponível, **antes de minimizar ou
+> ### ⚠️ O DATASUL não é executado nesta versão
+>
+> A parte do `SWPROGRAMACAO.rdp` ainda está em construção, e ficou combinado
+> que o DATASUL só entra **depois que todo o procedimento do RDP terminar**.
+> Hoje o START roda somente os passos 1 e 2 abaixo (a VPS), encerra na ULIANA
+> e reabre a interface — nenhuma tecla é enviada ao DATASUL. Os passos do
+> DATASUL continuam prontos no motor (`totvs/automacao.py`,
+> `AutomacaoTOTVS.importar_pedido`) e voltam à sequência quando essa etapa for
+> dada como finalizada; nada mais precisa mudar, porque a ordem “VPS primeiro,
+> DATASUL depois” já é garantida pelo orquestrador.
+
+**O que o START faz hoje, em ordem:**
+
+1. **Abre a VPS:** procura `SWPROGRAMACAO.rdp` na área de trabalho (Desktop,
+   OneDrive/Desktop, Área de Trabalho e OneDrive/Área de Trabalho) e o abre
+   igual a dar dois cliques; depois traz a janela da VPS para o primeiro plano.
+2. **Faz o procedimento da VPS:** login do Windows (usuário, TAB, senha, ENTER),
+   login do EDI (usuário, TAB, senha, ENTER), 4 s para carregar, espera a tela
+   “Informe o parceiro” e procura a ULIANA. É exatamente o mesmo procedimento
+   de `python -m swprogramacao` (seção acima). Sem o `.rdp`, sem acesso salvo
+   ou com alguma captura faltando, ele para **antes** de abrir a VPS.
+3. **Encerra e reabre a interface**, registrando no log que o DATASUL está
+   desligado. Se qualquer etapa falhar, o aviso aparece na tela e o motivo
+   exato fica em `log_automacao.txt`.
+
+**Passos do DATASUL — desligados hoje, na ordem em que voltam:**
+
+1. Procura uma janela DATASUL disponível **antes de minimizar ou
    abrir o navegador**. Uma sessão já aberta é reutilizada.
-3. Consulta as janelas nativas do Windows (sem abrir visualmente o Gerenciador
+2. Consulta as janelas nativas do Windows (sem abrir visualmente o Gerenciador
    de Tarefas). Aceita **"DATASUL Interactive"** ou **"DATASUL Interative"**,
    inclusive minimizadas e com sufixos no título. Exige janela visível/responsiva
    e processo vivo; descarta navegadores pelo título **e pelo executável**.
@@ -113,33 +164,33 @@ grande e vermelho **START**. Ao clicar, roda o fluxo de importação
    `prowin32.exe` isolado **não bloqueia** a abertura e não é encerrado.
    Confere as janelas novamente antes de iniciar outra sessão. Sem janela,
    minimiza as demais com `WIN+M` (não usa `WIN+D`, que alterna a área de trabalho).
-4. Se não encontrar uma janela disponível, abre o Edge em
+3. Se não encontrar uma janela disponível, abre o Edge em
    `http://192.168.2.6:8080/totvs-menu`, preenche o acesso informado na interface
    e clica em **Entrar**. Procura `img/abrir.png` (ou `img/abrir_popup.png`,
    nome existente nesta versão) por até 30s e clica no botão encontrado.
    Se o DATASUL abrir sem popup, segue normalmente. Sem imagem correspondente,
    interrompe com aviso em vez de enviar atalhos às cegas.
    Depois do clique, aguarda até 47s pela janela/processo DATASUL.
-5. Restaura e ativa a janela, usando também `SetForegroundWindow`,
+4. Restaura e ativa a janela, usando também `SetForegroundWindow`,
    `BringWindowToTop` e clique na barra de título. **Exige confirmação real do
    foco antes do CTRL+X**; se a consulta falhar ou outra janela estiver ativa,
    interrompe. Não envia TAB para tentar ativar uma janela desconhecida.
-6. **CTRL+X** → abre a **janela do lançador de programas**. A automação espera
+5. **CTRL+X** → abre a **janela do lançador de programas**. A automação espera
    essa janela aparecer (pelos títulos conhecidos **ou** por "qualquer janela
    nova" que surja depois do atalho), traz ela para a frente e só então digita.
-7. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
+6. Digita **ESPD0001** → **ENTER** (o campo é limpo com `CTRL+A` + `DELETE`
    antes de digitar, para não juntar com um código que já estivesse lá).
-8. Após o carregamento do programa, envia **1x TAB** → **ENTER** para confirmar
+7. Após o carregamento do programa, envia **1x TAB** → **ENTER** para confirmar
    a tela inicial do ESPD0001.
-9. Envia **5x TAB consecutivos**, sem ENTER entre eles, para chegar ao campo de
+8. Envia **5x TAB consecutivos**, sem ENTER entre eles, para chegar ao campo de
    endereço. Depois pressiona **ENTER**, antes de colar.
-10. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
-11. Envia **4x** TAB → seta **↓** → seta **↑**.
-12. Procura **`img/abrir_popup.png`** e clica; em seguida procura
+9. Cola o diretório `\\192.168.0.9\s\Sawluz\swedi\OUTPUT\GM\` e pressiona **ENTER**.
+10. Envia **4x** TAB → seta **↓** → seta **↑**.
+11. Procura **`img/abrir_popup.png`** e clica; em seguida procura
     **`img/executar.png`** e clica. Aguarda até 30s por cada botão, com confiança
     fixa de 90%. Arquivo ausente, erro ou botão não encontrado interrompe o
     fluxo com aviso; não tenta confirmar por ENTER.
-13. Encerra após o clique em Executar e reabre a interface, **sem ENTER final**
+12. Encerra após o clique em Executar e reabre a interface, **sem ENTER final**
     nem outras confirmações. Esta etapa não verifica o resultado da importação
     dentro do TOTVS.
 
@@ -228,6 +279,7 @@ Na interface, clique em **"Iniciar Automação"**. Acompanhe o progresso em
 automacao/
 ├── lancamento_inventario.py    ⭐ Interface gráfica (ponto de entrada)
 ├── automacao_totvs.py          ⭐ Ponto de entrada do motor TOTVS
+├── orquestrador.py             ⭐ Sequência: VPS (SWProgramação) primeiro, DATASUL depois
 ├── msedgedriver.exe            Driver do Edge (Selenium)
 │
 ├── totvs/                      PARTE TOTVS
@@ -236,6 +288,7 @@ automacao/
 │
 ├── swprogramacao/              PARTE SWPROGRAMAÇÃO (VPS)
 │   ├── __main__.py             Linha de comando: python -m swprogramacao
+│   ├── execucao.py             Passo 1 com as dependências reais (usado pela CLI e pelo START)
 │   ├── fluxo.py                Passo 1: valida as imagens, logins, ULIANA e checkpoint
 │   ├── acessos.py              Acesso da VPS (ambiente/DPAPI), sem senha em texto puro
 │   └── rdp.py                  Acha e abre o SWPROGRAMACAO.rdp
@@ -249,6 +302,8 @@ automacao/
 │
 ├── tests/                      Testes automatizados
 │
+├── salvar_acesso_sw.bat        Atalho: salva o acesso da VPS (DPAPI, uma vez)
+├── diagnostico_sw.bat          Atalho: confere .rdp, tela, imagens e acesso
 ├── compilar.bat                Gera os .exe (PyInstaller)
 ├── Sistema_Inventario.spec     Config de build da interface
 ├── Automacao_TOTVS.spec        Config de build da automação
@@ -332,6 +387,8 @@ para olhar em caso de problema.
 | O texto digitou no lugar errado (não no TOTVS) | Significa que o DATASUL não era a janela ativa. O log traz `Foco não confirmado no DATASUL; nenhuma tecla será enviada.`; se o foco não for confirmado, a automação **para** e avisa na tela em vez de digitar às cegas. Clique na janela do DATASUL e clique em START de novo. |
 | SWProgramação: a imagem existe mas nunca é encontrada | Rode `python -m swprogramacao --diagnostico` e confira, nesta ordem: (1) a **janela da VPS está visível** — minimizada, atrás de outra ou em outro monitor nunca casa; (2) a **escala de exibição** do Windows é a mesma do PC que capturou (com 125%/150% a tela é lida reduzida; o projeto já marca o processo como *DPI aware*); (3) o **tamanho da captura** não é maior que a resolução listada; (4) teste `--confianca-minima 0.4` — se só casar frouxo, refaça a captura. |
 | SWProgramação: "Faltam imagens em img\swprogramacao/" | O arquivo não existe no caminho indicado. O `--diagnostico` mostra a pasta absoluta em uso: em `.exe` ela é a pasta do executável, não a do projeto. |
+| START não entra no DATASUL (comportamento esperado hoje) | Enquanto o procedimento do `SWPROGRAMACAO.rdp` não estiver finalizado, a sequência para na VPS de propósito: o log traz `A entrada no DATASUL está DESLIGADA nesta versão`. O DATASUL volta quando essa etapa for dada como finalizada. |
+| START para dizendo que não há acesso da VPS salvo | Salve uma vez com `python -m swprogramacao --salvar-acesso` (a interface/.exe não tem terminal para pedir a senha) ou defina `SW_WINDOWS_LOGIN`, `SW_WINDOWS_SENHA`, `SW_EDI_LOGIN` e `SW_EDI_SENHA`. Nenhuma senha é gravada no projeto nem no log. |
 | Importação para com "SWPROGRAMACAO.rdp não encontrado" | Coloque o arquivo na área de trabalho (valem Desktop, OneDrive/Desktop, Área de Trabalho e OneDrive/Área de Trabalho). Enquanto a VPS não abre, o DATASUL não é executado de propósito; se a sessão RDP já estiver aberta, o arquivo nem é procurado. |
 
 ---
@@ -369,9 +426,11 @@ servidor interno. Validação final precisa ser feita no Windows com Edge e TOTV
 - Senha inválida, imagem ausente ou janela sem foco: deve parar sem continuar o pedido.
 - Alterar o acesso para cada operador e testar tanto `.py` quanto os `.exe` recompilados.
 - SWProgramação, passo 1: com a VPS aberta, `python -m swprogramacao --diagnostico` deve achar o `.rdp`, mostrar resolução/escala/janela da VPS e achar as 4 imagens; depois, rodar até achar a ULIANA (`ULIANA encontrada` no log).
+- Sequência (orquestrador): com o passo 1 simulado como concluído, o START termina sem chamar o DATASUL e sem enviar nenhuma tecla; com o passo 1 falhando, o DATASUL não é chamado, o aviso aparece na tela e a interface é reaberta.
 - SWProgramação: sem as 4 capturas em `img/swprogramacao/`, o passo para **antes** de abrir a VPS e diz quais faltam; com `--salvar-acesso` (ou variáveis de ambiente), rodar de novo não deve pedir senha.
 - SWProgramação: ao rodar, o log deve trazer `Janela da VPS em primeiro plano` e a linha `Tela: resolução ...; escala ...` com o tamanho em pixels de cada captura.
-- Importação: ao clicar em START, o log deve mostrar a abertura do `SWPROGRAMACAO.rdp` ANTES da busca pelo DATASUL. Com uma sessão RDP já aberta, nada deve ser reaberto; sem o `.rdp` (e sem sessão aberta), o DATASUL não deve ser executado.
+- Importação: ao clicar em START, o log (`log_automacao.txt`) deve mostrar o procedimento do `SWPROGRAMACAO.rdp` (login do Windows, login do EDI, tela de parceiro e ULIANA) e, no fim, `A entrada no DATASUL está DESLIGADA nesta versão`. Nenhuma tecla deve ser enviada ao DATASUL.
+- Importação: com uma captura faltando, com o `.rdp` ausente ou sem acesso salvo, o START deve parar antes mesmo de abrir a VPS, mostrar o aviso na tela e reabrir a interface.
 
 Instale as dependências atualizadas e execute `compilar.bat` novamente para
 usar as alterações nos executáveis. O ambiente Linux de desenvolvimento não

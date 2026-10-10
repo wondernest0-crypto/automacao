@@ -2650,7 +2650,17 @@ class AutomacaoTOTVS:
         return False
 
     def importar_pedido(self):
-        """Fluxo da aba "Importar Pedido HONDA & GM" (botão START vermelho).
+        """Fluxo DATASUL da aba "Importar Pedido HONDA & GM" (botão START vermelho).
+
+        QUEM CHAMA: este método é a etapa DATASUL da sequência, chamada pelo
+        orquestrador da raiz (`orquestrador.py`) — e ele hoje NÃO o chama, porque
+        ficou combinado que o DATASUL só entra depois que todo o procedimento do
+        SWPROGRAMACAO.rdp (abrir a VPS, logins, tela de parceiro e ULIANA) estiver
+        finalizado. A etapa da VPS não mora aqui: `totvs/` não importa
+        `swprogramacao/` (ver tests/test_limites_partes.py). O PASSO 0 abaixo
+        (abrir a VPS) continua neste método para quando o DATASUL voltar à
+        sequência — como o orquestrador abriu a VPS antes, a sessão RDP é
+        reaproveitada em vez de ser aberta de novo.
 
         Ordem do processo:
 
